@@ -103,6 +103,12 @@
     flex:1; display:flex; justify-content:center; padding:10px;
     background: var(--bg-panel); border-radius:24px; border:1px solid var(--line-hair);
   }
+  .canvas-frame.is-fullscreen{
+    position:fixed; inset:0; z-index:100; padding:16px;
+    border-radius:0; border:none; align-items:center;
+    animation: viewIn 180ms ease;
+  }
+  .canvas-frame.is-fullscreen .paper{ max-width:94vmin; }
   .paper{
     position:relative; width:100%; max-width:600px; aspect-ratio:1/1;
     background:var(--paper); border-radius:14px; overflow:hidden;
@@ -123,14 +129,6 @@
     display:flex; align-items:center; justify-content:center;
   }
   .btn-expand:active{ transform: scale(0.9); }
-
-  .fs-overlay{
-    position:fixed; inset:0; background: var(--bg-night); z-index:100;
-    display:flex; align-items:center; justify-content:center; padding:20px;
-    animation: viewIn 180ms ease;
-  }
-  .fs-overlay img{ max-width:100%; max-height:100%; border-radius:14px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
-  .fs-close{ position:absolute; top:16px; right:16px; }
 
   .control-panel{
     background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
@@ -212,9 +210,9 @@
 
   <main id="viewPage">
     <div class="page-progress"><div class="page-progress-fill" id="pageProgressFill"></div></div>
-    <div class="page-row">
+    <div class="page-row" id="pageRow">
       <button id="btnPrev" class="btn-round" aria-label="Página anterior">‹</button>
-      <div class="canvas-frame">
+      <div class="canvas-frame" id="canvasFrame">
         <div class="paper" id="paperWrap">
           <canvas id="paintCanvas"></canvas>
           <canvas id="lineCanvas"></canvas>
@@ -240,11 +238,6 @@
       </div>
     </div>
   </main>
-</div>
-
-<div class="fs-overlay" id="fullscreenOverlay" hidden>
-  <button id="btnCloseFs" class="btn-round fs-close" aria-label="Cerrar">✕</button>
-  <img id="fsImage" alt="Mándala en pantalla completa">
 </div>
 
 <div class="toast" id="toast"></div>
@@ -406,6 +399,8 @@
   const paintCanvas = document.getElementById('paintCanvas');
   const lctx = lineCanvas.getContext('2d');
   const pctx = paintCanvas.getContext('2d');
+  const canvasFrame = document.getElementById('canvasFrame');
+  const btnExpand = document.getElementById('btnExpand');
   const paletteWheel = document.getElementById('paletteWheel');
   const rangeBrush = document.getElementById('rangeBrush');
   const valBrush = document.getElementById('valBrush');
@@ -550,6 +545,7 @@
 
   btnIndex.addEventListener('click', function(){
     persistCurrentPaint();
+    if (paperFullscreen) toggleFullscreenView();
     showIndex();
   });
   btnPrev.addEventListener('click', goPrev);
@@ -574,18 +570,28 @@
     }
   });
 
-  window.addEventListener('resize', function(){
-    if (viewPage.style.display === 'flex'){
-      const dataUrl = paintCanvas.toDataURL();
-      const cssSize = currentCssSize();
-      sizeCanvas(paintCanvas, cssSize);
-      sizeCanvas(lineCanvas, cssSize);
-      drawPage(lctx, cssSize, book[currentPageId]);
-      const img = new Image();
-      img.onload = function(){ pctx.drawImage(img,0,0,cssSize,cssSize); };
-      img.src = dataUrl;
-    }
-  });
+  function resizeCurrentPageCanvases(){
+    if (viewPage.style.display !== 'flex') return;
+    const dataUrl = paintCanvas.toDataURL();
+    const cssSize = currentCssSize();
+    sizeCanvas(paintCanvas, cssSize);
+    sizeCanvas(lineCanvas, cssSize);
+    drawPage(lctx, cssSize, book[currentPageId]);
+    const img = new Image();
+    img.onload = function(){ pctx.drawImage(img,0,0,cssSize,cssSize); };
+    img.src = dataUrl;
+  }
+  window.addEventListener('resize', resizeCurrentPageCanvases);
+
+  let paperFullscreen = false;
+  function toggleFullscreenView(){
+    paperFullscreen = !paperFullscreen;
+    canvasFrame.classList.toggle('is-fullscreen', paperFullscreen);
+    btnExpand.textContent = paperFullscreen ? '✕' : '⤢';
+    btnExpand.setAttribute('aria-label', paperFullscreen ? 'Cerrar pantalla completa' : 'Ver mándala en pantalla completa');
+    requestAnimationFrame(resizeCurrentPageCanvases);
+  }
+  btnExpand.addEventListener('click', toggleFullscreenView);
 
   function pushUndo(){
     try{
@@ -718,30 +724,6 @@
     link.href = out.toDataURL('image/png');
     link.click();
     showToast('Imagen guardada');
-  });
-
-  const btnExpand = document.getElementById('btnExpand');
-  const fullscreenOverlay = document.getElementById('fullscreenOverlay');
-  const fsImage = document.getElementById('fsImage');
-  const btnCloseFs = document.getElementById('btnCloseFs');
-  btnExpand.addEventListener('click', function(){
-    try{
-      const dataUrl = composePageCanvas().toDataURL('image/png');
-      if (!dataUrl || dataUrl === 'data:,') throw new Error('lienzo vacío');
-      fsImage.src = dataUrl;
-      fullscreenOverlay.hidden = false;
-    }catch(err){
-      showToast('No se pudo abrir la vista completa (' + err.message + ')');
-    }
-  });
-  function closeFsOverlay(){ fullscreenOverlay.hidden = true; }
-  btnCloseFs.addEventListener('click', closeFsOverlay);
-  fsImage.addEventListener('error', function(){
-    fullscreenOverlay.hidden = true;
-    showToast('No se pudo mostrar la imagen. Probá recargar la página.');
-  });
-  fullscreenOverlay.addEventListener('click', function(e){
-    if (e.target === fullscreenOverlay) closeFsOverlay();
   });
 
   let toastTimer = null;
