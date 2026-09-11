@@ -173,6 +173,7 @@
       <span class="sub" id="topSub">100 páginas para colorear</span>
     </div>
     <div class="topbar-actions">
+      <button id="btnFullscreen" class="btn-round" aria-label="Pantalla completa" hidden>⛶</button>
       <button id="btnInstall" class="btn-ghost" hidden>Instalar</button>
       <button id="btnNewBook" class="btn-ghost">Libro nuevo</button>
       <button id="btnSave" class="btn-primary" hidden>Guardar</button>
@@ -709,6 +710,29 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 1800);
   }
+
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const fsEl = document.documentElement;
+  const canFullscreen = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen);
+  if (canFullscreen) btnFullscreen.hidden = false;
+  function isFullscreen(){
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  function updateFullscreenIcon(){
+    btnFullscreen.textContent = isFullscreen() ? '⤢' : '⛶';
+    btnFullscreen.setAttribute('aria-label', isFullscreen() ? 'Salir de pantalla completa' : 'Pantalla completa');
+  }
+  btnFullscreen.addEventListener('click', function(){
+    if (!isFullscreen()){
+      const req = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen;
+      req.call(fsEl).catch(function(){ showToast('El navegador bloqueó la pantalla completa'); });
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      exit.call(document);
+    }
+  });
+  document.addEventListener('fullscreenchange', updateFullscreenIcon);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
   let deferredPrompt = null;
   const btnInstall = document.getElementById('btnInstall');
