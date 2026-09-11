@@ -115,6 +115,22 @@
   .paper-anim{ animation: paperIn 180ms ease; }
   .paper canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   #lineCanvas{ pointer-events:none; }
+  .btn-expand{
+    position:absolute; top:8px; right:8px; z-index:5;
+    width:32px; height:32px; border-radius:50%;
+    background:rgba(30,29,63,0.82); color:var(--text-light);
+    border:1px solid var(--line-hair); font-size:0.9rem;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .btn-expand:active{ transform: scale(0.9); }
+
+  .fs-overlay{
+    position:fixed; inset:0; background: var(--bg-night); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    animation: viewIn 180ms ease;
+  }
+  .fs-overlay img{ max-width:100%; max-height:100%; border-radius:14px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+  .fs-close{ position:absolute; top:16px; right:16px; }
 
   .control-panel{
     background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
@@ -202,6 +218,7 @@
         <div class="paper" id="paperWrap">
           <canvas id="paintCanvas"></canvas>
           <canvas id="lineCanvas"></canvas>
+          <button id="btnExpand" class="btn-expand" aria-label="Ver mándala en pantalla completa">⤢</button>
         </div>
       </div>
       <button id="btnNext" class="btn-round" aria-label="Página siguiente">›</button>
@@ -223,6 +240,11 @@
       </div>
     </div>
   </main>
+</div>
+
+<div class="fs-overlay" id="fullscreenOverlay" hidden>
+  <button id="btnCloseFs" class="btn-round fs-close" aria-label="Cerrar">✕</button>
+  <img id="fsImage" alt="Mándala en pantalla completa">
 </div>
 
 <div class="toast" id="toast"></div>
@@ -677,7 +699,7 @@
     showToast('Página limpia');
   });
 
-  btnSave.addEventListener('click', function(){
+  function composePageCanvas(){
     const size = Math.max(paintCanvas.width, 1200);
     const out = document.createElement('canvas');
     out.width = size; out.height = size;
@@ -686,11 +708,30 @@
     octx.fillRect(0,0,size,size);
     octx.drawImage(paintCanvas, 0,0,size,size);
     octx.drawImage(lineCanvas, 0,0,size,size);
+    return out;
+  }
+
+  btnSave.addEventListener('click', function(){
+    const out = composePageCanvas();
     const link = document.createElement('a');
     link.download = 'mandala-pagina-' + (currentPageId + 1) + '.png';
     link.href = out.toDataURL('image/png');
     link.click();
     showToast('Imagen guardada');
+  });
+
+  const btnExpand = document.getElementById('btnExpand');
+  const fullscreenOverlay = document.getElementById('fullscreenOverlay');
+  const fsImage = document.getElementById('fsImage');
+  const btnCloseFs = document.getElementById('btnCloseFs');
+  btnExpand.addEventListener('click', function(){
+    fsImage.src = composePageCanvas().toDataURL('image/png');
+    fullscreenOverlay.hidden = false;
+  });
+  function closeFsOverlay(){ fullscreenOverlay.hidden = true; }
+  btnCloseFs.addEventListener('click', closeFsOverlay);
+  fullscreenOverlay.addEventListener('click', function(e){
+    if (e.target === fullscreenOverlay) closeFsOverlay();
   });
 
   let toastTimer = null;
