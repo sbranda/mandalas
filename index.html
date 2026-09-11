@@ -202,7 +202,7 @@
   <header class="topbar">
     <div>
       <h1>Libro de Mándalas</h1>
-      <span class="sub" id="topSub">100 páginas para colorear</span>
+      <span class="sub" id="topSub">200 páginas para colorear</span>
     </div>
     <div class="topbar-actions">
       <button id="btnFullscreen" class="btn-round" aria-label="Pantalla completa" hidden>⛶</button>
@@ -216,7 +216,7 @@
     <div class="index-toolbar">
       <span class="progress-text" id="progressText">0 / 100 coloreadas</span>
       <div class="jump-form">
-        <input type="number" id="jumpInput" min="1" max="100" placeholder="N°" inputmode="numeric">
+        <input type="number" id="jumpInput" min="1" max="200" placeholder="N°" inputmode="numeric">
         <button id="btnJump" class="btn-ghost">Ir</button>
       </div>
     </div>
@@ -351,7 +351,7 @@
 
   const BOOK_KEY = 'mandalas:book:v1';
   const BRUSH_KEY = 'mandalas:brush:v1';
-  const PAGE_COUNT = 100;
+  const PAGE_COUNT = 200;
   const SEG_OPTIONS = [6,8,10,12,14];
   const LAYER_OPTIONS = [3,4,5,6];
   function hslToHex(h, s, l){
@@ -377,16 +377,18 @@
 
   const PALETTE = generatePalette();
 
+  function makeRandomPage(id){
+    return {
+      id: id,
+      segments: SEG_OPTIONS[Math.floor(Math.random()*SEG_OPTIONS.length)],
+      layers: LAYER_OPTIONS[Math.floor(Math.random()*LAYER_OPTIONS.length)],
+      seed: Math.floor(Math.random()*1000000)
+    };
+  }
+
   function generateBook(){
     const pages = [];
-    for (let i=0; i<PAGE_COUNT; i++){
-      pages.push({
-        id: i,
-        segments: SEG_OPTIONS[Math.floor(Math.random()*SEG_OPTIONS.length)],
-        layers: LAYER_OPTIONS[Math.floor(Math.random()*LAYER_OPTIONS.length)],
-        seed: Math.floor(Math.random()*1000000)
-      });
-    }
+    for (let i=0; i<PAGE_COUNT; i++) pages.push(makeRandomPage(i));
     return pages;
   }
 
@@ -395,7 +397,14 @@
       const raw = localStorage.getItem(BOOK_KEY);
       if (raw){
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.pages) && parsed.pages.length === PAGE_COUNT) return parsed.pages;
+        if (Array.isArray(parsed.pages) && parsed.pages.length > 0){
+          const pages = parsed.pages;
+          if (pages.length < PAGE_COUNT){
+            for (let i = pages.length; i < PAGE_COUNT; i++) pages.push(makeRandomPage(i));
+            saveBook(pages);
+          }
+          return pages;
+        }
       }
     }catch(e){}
     const fresh = generateBook();
