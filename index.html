@@ -256,20 +256,10 @@
       const rm = r0 + (r1-r0)*0.5;
       ctx.arc(0,0, rm, 0, angleStep);
       ctx.stroke();
-    } else if (type === 2) {
+    } else {
       const rm = (r0 + r1) / 2;
       const pa = polar(r0, mid), pb = polar(rm, 0), pc = polar(r1, mid), pd = polar(rm, angleStep);
       ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.lineTo(pc[0],pc[1]); ctx.lineTo(pd[0],pd[1]); ctx.closePath();
-      ctx.stroke();
-    } else {
-      const dotCount = 2 + Math.floor(rand()*3);
-      for (let i=0;i<dotCount;i++){
-        const r = r0 + rand()*(r1-r0);
-        const a = rand()*angleStep*0.9 + angleStep*0.05;
-        const p = polar(r,a);
-        ctx.moveTo(p[0] + Math.max(1.5,(r1-r0)*0.07), p[1]);
-        ctx.arc(p[0],p[1], Math.max(1.5, (r1-r0)*0.07), 0, Math.PI*2);
-      }
       ctx.stroke();
     }
   }
@@ -303,7 +293,7 @@
     for (let l=0; l<layers; l++){
       const r0 = maxR * (l/layers);
       const r1 = maxR * ((l+1)/layers);
-      const shapeType = Math.floor(rand()*4);
+      const shapeType = Math.floor(rand()*3);
       for (let s=0; s<segments; s++){
         ctx.save();
         ctx.rotate(angleStep*s);
