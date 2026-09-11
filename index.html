@@ -237,7 +237,7 @@
           <button id="btnExpand" class="btn-expand" aria-label="Ver mándala en pantalla completa">⤢</button>
         </div>
         <div class="fs-toolbar" id="fsToolbar">
-          <button id="fsEraser" class="btn-ghost fs-tool-btn">Goma</button>
+          <button id="fsTool" class="btn-ghost fs-tool-btn">Pincel</button>
           <div class="fs-palette" id="fsPalette"></div>
           <button id="fsUndo" class="btn-ghost fs-tool-btn">Deshacer</button>
         </div>
@@ -252,8 +252,12 @@
         <input type="range" id="rangeBrush" min="2" max="40" value="10">
       </div>
       <div class="row-buttons">
-        <button id="btnEraser" class="btn-ghost">Goma</button>
-        <button id="btnUndo" class="btn-ghost">Deshacer</button>
+        <button id="btnToolBrush" class="btn-ghost is-active">Pincel</button>
+        <button id="btnToolBucket" class="btn-ghost">Balde</button>
+        <button id="btnToolEraser" class="btn-ghost">Goma</button>
+      </div>
+      <div class="row-buttons">
+        <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
       </div>
       <div class="row-buttons">
         <button id="btnClear" class="btn-ghost btn-block">Borrar página</button>
@@ -423,7 +427,9 @@
   }
 
   let currentPageId = null;
-  let eraser = false;
+  let tool = 'brush'; // 'brush' | 'bucket' | 'eraser'
+  const TOOL_LABELS = { brush: 'Pincel', bucket: 'Balde', eraser: 'Goma' };
+  const TOOL_ORDER = ['brush', 'bucket', 'eraser'];
 
   const viewIndex = document.getElementById('viewIndex');
   const viewPage = document.getElementById('viewPage');
@@ -447,11 +453,13 @@
   const btnExpand = document.getElementById('btnExpand');
   const paletteWheel = document.getElementById('paletteWheel');
   const fsPalette = document.getElementById('fsPalette');
-  const fsEraser = document.getElementById('fsEraser');
+  const fsTool = document.getElementById('fsTool');
   const fsUndo = document.getElementById('fsUndo');
   const rangeBrush = document.getElementById('rangeBrush');
   const valBrush = document.getElementById('valBrush');
-  const btnEraser = document.getElementById('btnEraser');
+  const btnToolBrush = document.getElementById('btnToolBrush');
+  const btnToolBucket = document.getElementById('btnToolBucket');
+  const btnToolEraser = document.getElementById('btnToolEraser');
   const btnUndo = document.getElementById('btnUndo');
   const btnClear = document.getElementById('btnClear');
   const toastEl = document.getElementById('toast');
@@ -666,20 +674,91 @@
   function strokeTo(p0, p1){
     pctx.lineCap = 'round'; pctx.lineJoin = 'round';
     pctx.lineWidth = brush.size;
-    pctx.globalCompositeOperation = eraser ? 'destination-out' : 'source-over';
+    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
     pctx.strokeStyle = brush.color;
     pctx.beginPath(); pctx.moveTo(p0.x, p0.y); pctx.lineTo(p1.x, p1.y); pctx.stroke();
   }
   function dotAt(p){
-    pctx.globalCompositeOperation = eraser ? 'destination-out' : 'source-over';
+    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
     pctx.fillStyle = brush.color;
     pctx.beginPath(); pctx.arc(p.x, p.y, brush.size/2, 0, Math.PI*2); pctx.fill();
   }
+
+  /* ---------------- Balde de relleno (flood fill acotado por las líneas) ---------------- */
+  function hexToRgba(hex){
+    const v = hex.replace('#','');
+    const r = parseInt(v.substring(0,2),16);
+    const g = parseInt(v.substring(2,4),16);
+    const b = parseInt(v.substring(4,6),16);
+    return [r,g,b,255];
+  }
+  function floodFillSpan(data, lineData, w, h, x0, y0, fillColor){
+    const idx = function(x,y){ return (y*w+x)*4; };
+    const wallThreshold = 60;
+    function isWall(x,y){ return lineData[idx(x,y)+3] > wallThreshold; }
+    const i0 = idx(x0,y0);
+    const tr = data[i0], tg = data[i0+1], tb = data[i0+2], ta = data[i0+3];
+    const fr = fillColor[0], fg = fillColor[1], fb = fillColor[2], fa = fillColor[3];
+    if (isWall(x0,y0)) return false;
+    if (tr===fr && tg===fg && tb===fb && ta===fa) return false;
+    function matches(x,y){
+      const i = idx(x,y);
+      return Math.abs(data[i]-tr)<=24 && Math.abs(data[i+1]-tg)<=24 &&
+             Math.abs(data[i+2]-tb)<=24 && Math.abs(data[i+3]-ta)<=24;
+    }
+    const stack = [[x0,y0]];
+    let guard = 0;
+    const guardMax = w*h*2;
+    while (stack.length){
+      if (++guard > guardMax) break;
+      const cur = stack.pop();
+      const y = cur[1];
+      let xl = cur[0];
+      while (xl>0 && !isWall(xl-1,y) && matches(xl-1,y)) xl--;
+      let xr = cur[0];
+      while (xr<w-1 && !isWall(xr+1,y) && matches(xr+1,y)) xr++;
+      let spanAbove = false, spanBelow = false;
+      for (let xx=xl; xx<=xr; xx++){
+        const i = idx(xx,y);
+        data[i]=fr; data[i+1]=fg; data[i+2]=fb; data[i+3]=fa;
+        if (y>0){
+          const ok = !isWall(xx,y-1) && matches(xx,y-1);
+          if (ok && !spanAbove){ stack.push([xx,y-1]); spanAbove = true; }
+          else if (!ok) spanAbove = false;
+        }
+        if (y<h-1){
+          const ok = !isWall(xx,y+1) && matches(xx,y+1);
+          if (ok && !spanBelow){ stack.push([xx,y+1]); spanBelow = true; }
+          else if (!ok) spanBelow = false;
+        }
+      }
+    }
+    return true;
+  }
+  function doFloodFill(p){
+    const cssSize = currentCssSize();
+    const w = paintCanvas.width, h = paintCanvas.height;
+    const px = Math.floor(p.x * (w / cssSize));
+    const py = Math.floor(p.y * (h / cssSize));
+    if (px<0 || py<0 || px>=w || py>=h) return;
+    const lineData = lctx.getImageData(0,0,w,h).data;
+    const paintImgData = pctx.getImageData(0,0,w,h);
+    const filled = floodFillSpan(paintImgData.data, lineData, w, h, px, py, hexToRgba(brush.color));
+    if (filled) pctx.putImageData(paintImgData, 0, 0);
+  }
+
   paintCanvas.addEventListener('pointerdown', function(e){
     paintCanvas.setPointerCapture(e.pointerId);
+    const p = getPoint(e);
+    if (tool === 'bucket'){
+      pushUndo();
+      doFloodFill(p);
+      persistCurrentPaint();
+      return;
+    }
     pushUndo();
     drawing = true;
-    lastPoint = getPoint(e);
+    lastPoint = p;
     dotAt(lastPoint);
   });
   paintCanvas.addEventListener('pointermove', function(e){
@@ -701,7 +780,7 @@
     paletteWheel.innerHTML = '';
     PALETTE.forEach(function(color){
       const sw = document.createElement('button');
-      sw.className = 'swatch' + (color === brush.color && !eraser ? ' selected' : '');
+      sw.className = 'swatch' + (color === brush.color && tool !== 'eraser' ? ' selected' : '');
       sw.style.background = color;
       sw.setAttribute('aria-label', 'Color ' + color);
       sw.addEventListener('click', function(){ pickColor(color); });
@@ -722,7 +801,7 @@
     fsPalette.innerHTML = '';
     PALETTE.forEach(function(color){
       const sw = document.createElement('button');
-      sw.className = 'fs-swatch' + (color === brush.color && !eraser ? ' selected' : '');
+      sw.className = 'fs-swatch' + (color === brush.color && tool !== 'eraser' ? ' selected' : '');
       sw.style.background = color;
       sw.setAttribute('aria-label', 'Color ' + color);
       sw.addEventListener('click', function(){ pickColor(color); });
@@ -741,14 +820,22 @@
   }
 
   function pickColor(color){
-    brush.color = color; eraser = false;
+    brush.color = color;
+    if (tool === 'eraser') tool = 'brush';
     saveBrush();
     syncToolUI();
   }
 
+  function setTool(t){
+    tool = t;
+    syncToolUI();
+  }
+
   function syncToolUI(){
-    btnEraser.classList.toggle('is-active', eraser);
-    fsEraser.classList.toggle('is-active', eraser);
+    btnToolBrush.classList.toggle('is-active', tool === 'brush');
+    btnToolBucket.classList.toggle('is-active', tool === 'bucket');
+    btnToolEraser.classList.toggle('is-active', tool === 'eraser');
+    fsTool.textContent = TOOL_LABELS[tool];
     buildPalette();
     buildFsPalette();
   }
@@ -760,13 +847,12 @@
     valBrush.textContent = brush.size;
     saveBrush();
   });
-  btnEraser.addEventListener('click', function(){
-    eraser = !eraser;
-    syncToolUI();
-  });
-  fsEraser.addEventListener('click', function(){
-    eraser = !eraser;
-    syncToolUI();
+  btnToolBrush.addEventListener('click', function(){ setTool('brush'); });
+  btnToolBucket.addEventListener('click', function(){ setTool('bucket'); });
+  btnToolEraser.addEventListener('click', function(){ setTool('eraser'); });
+  fsTool.addEventListener('click', function(){
+    const next = TOOL_ORDER[(TOOL_ORDER.indexOf(tool) + 1) % TOOL_ORDER.length];
+    setTool(next);
   });
   btnUndo.addEventListener('click', undo);
   fsUndo.addEventListener('click', undo);
