@@ -67,17 +67,38 @@
   .btn-round:disabled{ opacity:0.3; }
 
   #viewIndex{ display:flex; flex-direction:column; gap:14px; }
+  .index-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .progress-text{ font-size:0.75rem; color:var(--text-muted); }
+  .jump-form{ display:flex; gap:6px; align-items:center; }
+  .jump-form input{
+    width:56px; background: var(--bg-panel-alt); border:1px solid var(--line-hair);
+    border-radius:10px; color:var(--text-light); font-family:inherit; font-size:0.85rem;
+    padding:8px 8px; text-align:center;
+  }
+  .jump-form input::-webkit-outer-spin-button, .jump-form input::-webkit-inner-spin-button{ margin:0; }
   .book-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
   .page-thumb{
+    position:relative;
     background: var(--bg-panel); border-radius:14px; padding:6px;
     display:flex; flex-direction:column; align-items:center; gap:4px;
     border:1px solid var(--line-hair);
+    transition: transform .12s ease;
   }
+  .page-thumb:active{ transform: scale(0.95); }
   .page-thumb canvas{ width:100%; aspect-ratio:1/1; border-radius:9px; background:var(--paper); }
   .page-thumb span{ font-size:0.68rem; color:var(--text-muted); }
+  .thumb-badge{
+    position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%;
+    background: var(--gold); color:#20180a; font-size:0.62rem; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
 
   #viewPage{ display:none; flex-direction:column; gap:14px; }
+  .page-progress{ height:4px; border-radius:2px; background:var(--bg-panel-alt); overflow:hidden; }
+  .page-progress-fill{ height:100%; background: var(--gold); border-radius:2px; transition: width .3s ease; }
   .page-row{ display:flex; align-items:center; gap:10px; }
+  .btn-round{ transition: transform .1s ease; }
+  .btn-round:active{ transform: scale(0.88); }
   .canvas-frame{
     flex:1; display:flex; justify-content:center; padding:10px;
     background: var(--bg-panel); border-radius:24px; border:1px solid var(--line-hair);
@@ -88,6 +109,10 @@
     box-shadow: 0 12px 30px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.06);
     touch-action:none;
   }
+  @keyframes viewIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+  .view-anim{ animation: viewIn 220ms ease; }
+  @keyframes paperIn{ from{ opacity:0; transform:scale(0.97); } to{ opacity:1; transform:scale(1); } }
+  .paper-anim{ animation: paperIn 180ms ease; }
   .paper canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   #lineCanvas{ pointer-events:none; }
 
@@ -114,7 +139,9 @@
   .swatch{
     position:absolute; width:32px; height:32px; border-radius:50%; transform: translate(-50%,-50%);
     border:2px solid rgba(237,233,245,0.35);
+    transition: transform .12s ease;
   }
+  .swatch:active{ transform: translate(-50%,-50%) scale(0.85); }
   .swatch.selected{ border-color: var(--text-light); box-shadow: 0 0 0 3px var(--bg-night), 0 0 0 4px var(--gold); }
   .swatch-center{
     position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:50px; height:50px; border-radius:50%;
@@ -153,6 +180,13 @@
   </header>
 
   <main id="viewIndex">
+    <div class="index-toolbar">
+      <span class="progress-text" id="progressText">0 / 100 coloreadas</span>
+      <div class="jump-form">
+        <input type="number" id="jumpInput" min="1" max="100" placeholder="N°" inputmode="numeric">
+        <button id="btnJump" class="btn-ghost">Ir</button>
+      </div>
+    </div>
     <div class="book-grid" id="bookGrid"></div>
     <div class="install-note" id="iosInstallNote">
       Para instalar: tocá <b>Compartir</b> y luego <b>"Agregar a pantalla de inicio"</b>.
@@ -160,6 +194,7 @@
   </main>
 
   <main id="viewPage">
+    <div class="page-progress"><div class="page-progress-fill" id="pageProgressFill"></div></div>
     <div class="page-row">
       <button id="btnPrev" class="btn-round" aria-label="Página anterior">‹</button>
       <div class="canvas-frame">
@@ -343,6 +378,10 @@
   const viewIndex = document.getElementById('viewIndex');
   const viewPage = document.getElementById('viewPage');
   const bookGrid = document.getElementById('bookGrid');
+  const progressText = document.getElementById('progressText');
+  const jumpInput = document.getElementById('jumpInput');
+  const btnJump = document.getElementById('btnJump');
+  const pageProgressFill = document.getElementById('pageProgressFill');
   const topSub = document.getElementById('topSub');
   const btnNewBook = document.getElementById('btnNewBook');
   const btnSave = document.getElementById('btnSave');
@@ -367,8 +406,15 @@
   let drawing = false;
   let lastPoint = null;
 
+  function playViewAnim(el){
+    el.classList.remove('view-anim');
+    void el.offsetWidth;
+    el.classList.add('view-anim');
+  }
+
   function renderIndex(){
     bookGrid.innerHTML = '';
+    let coloredCount = 0;
     book.forEach(function(page){
       const item = document.createElement('button');
       item.className = 'page-thumb';
@@ -378,6 +424,11 @@
       ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,140,140);
       const savedPaint = loadPagePaint(page.id);
       if (savedPaint){
+        coloredCount++;
+        const badge = document.createElement('span');
+        badge.className = 'thumb-badge';
+        badge.textContent = '✓';
+        item.appendChild(badge);
         const img = new Image();
         img.onload = function(){
           ctx.drawImage(img,0,0,140,140);
@@ -394,6 +445,7 @@
       item.addEventListener('click', function(){ openPage(page.id); });
       bookGrid.appendChild(item);
     });
+    progressText.textContent = coloredCount + ' / ' + PAGE_COUNT + ' coloreadas';
   }
 
   function showIndex(){
@@ -403,7 +455,21 @@
     btnSave.hidden = true;
     topSub.textContent = PAGE_COUNT + ' páginas para colorear';
     renderIndex();
+    playViewAnim(viewIndex);
   }
+
+  btnJump.addEventListener('click', function(){
+    const n = parseInt(jumpInput.value, 10);
+    if (!n || n < 1 || n > PAGE_COUNT){
+      showToast('Ingresá un número entre 1 y ' + PAGE_COUNT);
+      return;
+    }
+    jumpInput.value = '';
+    openPage(n - 1);
+  });
+  jumpInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') btnJump.click();
+  });
 
   btnNewBook.addEventListener('click', function(){
     if (!confirm('¿Generar un libro nuevo? Se van a borrar los colores de todas las páginas.')) return;
@@ -422,13 +488,22 @@
     canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
   }
 
+  function playPaperAnim(){
+    const frame = paperWrap.parentElement;
+    frame.classList.remove('paper-anim');
+    void frame.offsetWidth;
+    frame.classList.add('paper-anim');
+  }
+
   function openPage(id){
+    const cameFromIndex = viewIndex.style.display !== 'none';
     currentPageId = id;
     viewIndex.style.display = 'none';
     viewPage.style.display = 'flex';
     btnNewBook.hidden = true;
     btnSave.hidden = false;
     topSub.textContent = 'Página ' + (id + 1) + ' de ' + PAGE_COUNT;
+    pageProgressFill.style.width = (((id + 1) / PAGE_COUNT) * 100) + '%';
     btnPrev.disabled = id === 0;
     btnNext.disabled = id === PAGE_COUNT - 1;
     undoStack = [];
@@ -444,6 +519,8 @@
       img.onload = function(){ pctx.drawImage(img, 0,0, cssSize, cssSize); };
       img.src = saved;
     }
+    if (cameFromIndex) playViewAnim(viewPage);
+    playPaperAnim();
   }
 
   function persistCurrentPaint(){
@@ -451,15 +528,37 @@
     try{ savePagePaint(currentPageId, paintCanvas.toDataURL()); }catch(e){}
   }
 
+  function goPrev(){
+    if (currentPageId > 0){ persistCurrentPaint(); openPage(currentPageId - 1); }
+  }
+  function goNext(){
+    if (currentPageId < PAGE_COUNT - 1){ persistCurrentPaint(); openPage(currentPageId + 1); }
+  }
+
   btnIndex.addEventListener('click', function(){
     persistCurrentPaint();
     showIndex();
   });
-  btnPrev.addEventListener('click', function(){
-    if (currentPageId > 0){ persistCurrentPaint(); openPage(currentPageId - 1); }
+  btnPrev.addEventListener('click', goPrev);
+  btnNext.addEventListener('click', goNext);
+
+  /* Deslizar con el dedo para pasar de página (fuera del lienzo de pintura) */
+  let swipeStart = null;
+  document.addEventListener('pointerdown', function(e){
+    if (viewPage.style.display !== 'flex') return;
+    if (paintCanvas.contains(e.target)) return;
+    swipeStart = { x: e.clientX, y: e.clientY, t: Date.now() };
   });
-  btnNext.addEventListener('click', function(){
-    if (currentPageId < PAGE_COUNT - 1){ persistCurrentPaint(); openPage(currentPageId + 1); }
+  document.addEventListener('pointerup', function(e){
+    if (!swipeStart) return;
+    const dx = e.clientX - swipeStart.x;
+    const dy = e.clientY - swipeStart.y;
+    const dt = Date.now() - swipeStart.t;
+    const start = swipeStart;
+    swipeStart = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 600){
+      if (dx < 0) goNext(); else goPrev();
+    }
   });
 
   window.addEventListener('resize', function(){
