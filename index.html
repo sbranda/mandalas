@@ -109,6 +109,22 @@
     animation: viewIn 180ms ease;
   }
   .canvas-frame.is-fullscreen .paper{ max-width:94vmin; }
+
+  .fs-toolbar{
+    display:none; position:absolute; left:0; right:0; bottom:0; z-index:20;
+    align-items:center; gap:10px;
+    padding: 12px 14px calc(env(safe-area-inset-bottom) + 12px);
+    background: linear-gradient(0deg, rgba(20,19,43,0.95) 0%, rgba(20,19,43,0.7) 70%, rgba(20,19,43,0) 100%);
+  }
+  .canvas-frame.is-fullscreen .fs-toolbar{ display:flex; }
+  .fs-palette{ flex:1; display:flex; gap:8px; overflow-x:auto; padding:4px 2px; scrollbar-width:none; }
+  .fs-palette::-webkit-scrollbar{ display:none; }
+  .fs-swatch{
+    width:30px; height:30px; border-radius:50%; flex-shrink:0;
+    border:2px solid rgba(237,233,245,0.35);
+  }
+  .fs-swatch.selected{ border-color: var(--text-light); box-shadow: 0 0 0 2px var(--bg-night), 0 0 0 3px var(--gold); }
+  .fs-tool-btn{ flex-shrink:0; padding:9px 12px; font-size:0.72rem; white-space:nowrap; }
   .paper{
     position:relative; width:100%; max-width:600px; aspect-ratio:1/1;
     background:var(--paper); border-radius:14px; overflow:hidden;
@@ -217,6 +233,11 @@
           <canvas id="paintCanvas"></canvas>
           <canvas id="lineCanvas"></canvas>
           <button id="btnExpand" class="btn-expand" aria-label="Ver mándala en pantalla completa">⤢</button>
+        </div>
+        <div class="fs-toolbar" id="fsToolbar">
+          <button id="fsEraser" class="btn-ghost fs-tool-btn">Goma</button>
+          <div class="fs-palette" id="fsPalette"></div>
+          <button id="fsUndo" class="btn-ghost fs-tool-btn">Deshacer</button>
         </div>
       </div>
       <button id="btnNext" class="btn-round" aria-label="Página siguiente">›</button>
@@ -402,6 +423,9 @@
   const canvasFrame = document.getElementById('canvasFrame');
   const btnExpand = document.getElementById('btnExpand');
   const paletteWheel = document.getElementById('paletteWheel');
+  const fsPalette = document.getElementById('fsPalette');
+  const fsEraser = document.getElementById('fsEraser');
+  const fsUndo = document.getElementById('fsUndo');
   const rangeBrush = document.getElementById('rangeBrush');
   const valBrush = document.getElementById('valBrush');
   const btnEraser = document.getElementById('btnEraser');
@@ -663,11 +687,7 @@
       sw.className = 'swatch' + (color === brush.color && !eraser ? ' selected' : '');
       sw.style.left = x + 'px'; sw.style.top = y + 'px'; sw.style.background = color;
       sw.setAttribute('aria-label', 'Color ' + color);
-      sw.addEventListener('click', function(){
-        brush.color = color; eraser = false;
-        btnEraser.classList.remove('is-active');
-        saveBrush(); buildPalette();
-      });
+      sw.addEventListener('click', function(){ pickColor(color); });
       paletteWheel.appendChild(sw);
     });
     const center = document.createElement('div');
@@ -676,13 +696,34 @@
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
     colorInput.value = brush.color;
-    colorInput.addEventListener('input', function(){
-      brush.color = colorInput.value; eraser = false;
-      btnEraser.classList.remove('is-active');
-      saveBrush();
-    });
+    colorInput.addEventListener('input', function(){ pickColor(colorInput.value); });
     center.appendChild(colorInput);
     paletteWheel.appendChild(center);
+  }
+
+  function buildFsPalette(){
+    fsPalette.innerHTML = '';
+    PALETTE.forEach(function(color){
+      const sw = document.createElement('button');
+      sw.className = 'fs-swatch' + (color === brush.color && !eraser ? ' selected' : '');
+      sw.style.background = color;
+      sw.setAttribute('aria-label', 'Color ' + color);
+      sw.addEventListener('click', function(){ pickColor(color); });
+      fsPalette.appendChild(sw);
+    });
+  }
+
+  function pickColor(color){
+    brush.color = color; eraser = false;
+    saveBrush();
+    syncToolUI();
+  }
+
+  function syncToolUI(){
+    btnEraser.classList.toggle('is-active', eraser);
+    fsEraser.classList.toggle('is-active', eraser);
+    buildPalette();
+    buildFsPalette();
   }
 
   rangeBrush.value = brush.size;
@@ -694,9 +735,14 @@
   });
   btnEraser.addEventListener('click', function(){
     eraser = !eraser;
-    btnEraser.classList.toggle('is-active', eraser);
+    syncToolUI();
+  });
+  fsEraser.addEventListener('click', function(){
+    eraser = !eraser;
+    syncToolUI();
   });
   btnUndo.addEventListener('click', undo);
+  fsUndo.addEventListener('click', undo);
   btnClear.addEventListener('click', function(){
     if (!confirm('¿Borrar el color de esta página? El dibujo de líneas no se pierde.')) return;
     pushUndo();
@@ -782,6 +828,7 @@
   }
 
   buildPalette();
+  buildFsPalette();
   showIndex();
 })();
 </script>
