@@ -725,11 +725,21 @@
   const fsImage = document.getElementById('fsImage');
   const btnCloseFs = document.getElementById('btnCloseFs');
   btnExpand.addEventListener('click', function(){
-    fsImage.src = composePageCanvas().toDataURL('image/png');
-    fullscreenOverlay.hidden = false;
+    try{
+      const dataUrl = composePageCanvas().toDataURL('image/png');
+      if (!dataUrl || dataUrl === 'data:,') throw new Error('lienzo vacío');
+      fsImage.src = dataUrl;
+      fullscreenOverlay.hidden = false;
+    }catch(err){
+      showToast('No se pudo abrir la vista completa (' + err.message + ')');
+    }
   });
   function closeFsOverlay(){ fullscreenOverlay.hidden = true; }
   btnCloseFs.addEventListener('click', closeFsOverlay);
+  fsImage.addEventListener('error', function(){
+    fullscreenOverlay.hidden = true;
+    showToast('No se pudo mostrar la imagen. Probá recargar la página.');
+  });
   fullscreenOverlay.addEventListener('click', function(e){
     if (e.target === fullscreenOverlay) closeFsOverlay();
   });

@@ -1,5 +1,5 @@
 // Recordá bumpear esta versión en cada deploy
-const CACHE_NAME = 'mandalas-v10';
+const CACHE_NAME = 'mandalas-v11';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
@@ -27,6 +27,25 @@ self.addEventListener('activate', function(event){
 });
 
 self.addEventListener('fetch', function(event){
+  const isHTML = event.request.mode === 'navigate' ||
+                 (event.request.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML){
+    // Red primero para el documento: así los cambios llegan sin esperar a que expire la caché
+    event.respondWith(
+      fetch(event.request).then(function(response){
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(event.request, clone); });
+        return response;
+      }).catch(function(){
+        return caches.match(event.request).then(function(cached){
+          return cached || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then(function(cached){
       if (cached) return cached;
