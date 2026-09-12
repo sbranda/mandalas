@@ -1,5 +1,5 @@
 // Recordá bumpear esta versión en cada deploy
-const CACHE_NAME = 'mandalas-v29';
+const CACHE_NAME = 'mandalas-v30';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
