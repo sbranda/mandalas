@@ -928,20 +928,29 @@
     playPaperAnim();
   }
 
+  let persistTimer = null;
   function persistCurrentPaint(){
     if (currentPageId === null) return;
     try{ savePagePaint(currentPageId, paintCanvas.toDataURL()); }catch(e){}
   }
+  function persistCurrentPaintDebounced(){
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(persistCurrentPaint, 400);
+  }
+  function flushPersist(){
+    clearTimeout(persistTimer);
+    persistCurrentPaint();
+  }
 
   function goPrev(){
-    if (currentPageId > 0){ persistCurrentPaint(); openPage(currentPageId - 1); }
+    if (currentPageId > 0){ flushPersist(); openPage(currentPageId - 1); }
   }
   function goNext(){
-    if (currentPageId < PAGE_COUNT - 1){ persistCurrentPaint(); openPage(currentPageId + 1); }
+    if (currentPageId < PAGE_COUNT - 1){ flushPersist(); openPage(currentPageId + 1); }
   }
 
   btnIndex.addEventListener('click', function(){
-    persistCurrentPaint();
+    flushPersist();
     if (paperFullscreen) toggleFullscreenView();
     showIndex();
   });
@@ -971,6 +980,7 @@
     if (viewPage.style.display !== 'flex') return;
     const dataUrl = paintCanvas.toDataURL();
     const cssSize = currentCssSize();
+    undoStack = [];
     resetZoom(false);
     sizeCanvas(paintCanvas, cssSize);
     sizeCanvas(lineCanvas, cssSize);
@@ -996,21 +1006,18 @@
 
   function pushUndo(){
     try{
-      undoStack.push(paintCanvas.toDataURL());
+      const snapshot = pctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
+      undoStack.push(snapshot);
       if (undoStack.length > UNDO_LIMIT) undoStack.shift();
     }catch(e){}
   }
   function undo(){
     if (!undoStack.length) return;
-    const cssSize = currentCssSize();
-    const prev = undoStack.pop();
-    const img = new Image();
-    img.onload = function(){
-      pctx.clearRect(0,0,cssSize,cssSize);
-      pctx.drawImage(img,0,0,cssSize,cssSize);
-      persistCurrentPaint();
-    };
-    img.src = prev;
+    const snapshot = undoStack.pop();
+    if (snapshot.width === paintCanvas.width && snapshot.height === paintCanvas.height){
+      pctx.putImageData(snapshot, 0, 0);
+    }
+    flushPersist();
   }
 
   function getPoint(evt){
@@ -1389,7 +1396,7 @@
     if (tool === 'bucket'){
       pushUndo();
       doFloodFill(p);
-      persistCurrentPaint();
+      persistCurrentPaintDebounced();
       return;
     }
     pushUndo();
@@ -1414,7 +1421,7 @@
     if (!drawing) return;
     drawing = false; lastPoint = null;
     flushScratchStroke();
-    persistCurrentPaint();
+    persistCurrentPaintDebounced();
   }
   function endPointer(e){
     activePointers.delete(e.pointerId);
@@ -1520,7 +1527,7 @@
     if (!confirm('¿Borrar el color de esta página? El dibujo de líneas no se pierde.')) return;
     pushUndo();
     pctx.clearRect(0,0, currentCssSize(), currentCssSize());
-    persistCurrentPaint();
+    flushPersist();
     showToast('Página limpia');
   });
 
