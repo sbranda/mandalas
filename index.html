@@ -192,6 +192,13 @@
 
   .row-buttons{ display:flex; gap:8px; }
   .row-buttons button{ flex:1; }
+  .number-legend{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .legend-badge{
+    display:flex; align-items:center; gap:6px;
+    background: var(--bg-night); border-radius:999px; padding:4px 10px 4px 4px;
+    font-size:0.72rem; color:var(--text-light);
+  }
+  .legend-swatch{ width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:#fff; text-shadow:0 1px 1px rgba(0,0,0,0.4); }
 
   .install-note{ font-size:0.72rem; color:var(--text-muted); background:var(--bg-night); border-radius:12px; padding:10px 12px; display:none; }
   .install-note.show{ display:block; }
@@ -282,6 +289,10 @@
       <div class="row-buttons">
         <button id="btnMirror" class="btn-ghost btn-block">Pintado espejado: apagado</button>
       </div>
+      <div class="row-buttons">
+        <button id="btnNumberMode" class="btn-ghost btn-block">Pintar por número: apagado</button>
+      </div>
+      <div class="number-legend" id="numberLegend" hidden></div>
       <div class="row-buttons">
         <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
       </div>
@@ -835,6 +846,7 @@
     book.forEach(function(p){ clearPagePaint(p.id); });
     book = generateBook();
     saveBook(book);
+    numberLayoutCache = {};
     renderIndex();
     showToast('Libro nuevo generado');
   });
@@ -873,6 +885,7 @@
     sizeCanvas(paintCanvas, cssSize);
     sizeCanvas(lineCanvas, cssSize);
     drawPage(lctx, cssSize, book[id]);
+    if (numberMode) drawNumbersOverlay(lctx, cssSize, id);
     pctx.clearRect(0,0,cssSize,cssSize);
     const saved = loadPagePaint(id);
     if (saved){
@@ -931,6 +944,7 @@
     sizeCanvas(paintCanvas, cssSize);
     sizeCanvas(lineCanvas, cssSize);
     drawPage(lctx, cssSize, book[currentPageId]);
+    if (numberMode) drawNumbersOverlay(lctx, cssSize, currentPageId);
     const img = new Image();
     img.onload = function(){ pctx.drawImage(img,0,0,cssSize,cssSize); };
     img.src = dataUrl;
@@ -1057,6 +1071,121 @@
     });
   }
 
+  /* ---------------- Pintar por número (detecta celdas y sugiere un color por número) ---------------- */
+  const NUMBER_MODE_KEY = 'mandalas:numbermode:v1';
+  const NUM_LEGEND_COLORS = ['#D64550','#E8912D','#E8C93E','#4E9F50','#3E86C9','#7B4B94','#D65AA0','#7A5230'];
+  let numberMode = false;
+  try{ numberMode = localStorage.getItem(NUMBER_MODE_KEY) === '1'; }catch(e){}
+  let numberLayoutCache = {};
+  const btnNumberMode = document.getElementById('btnNumberMode');
+  const numberLegend = document.getElementById('numberLegend');
+
+  function computeNumberLayout(pageId){
+    if (numberLayoutCache[pageId]) return numberLayoutCache[pageId];
+    const R = 320;
+    const off = document.createElement('canvas');
+    off.width = R; off.height = R;
+    const octx = off.getContext('2d');
+    drawPage(octx, R, book[pageId]);
+    const data = octx.getImageData(0,0,R,R).data;
+    const wallThreshold = 40;
+    function isWall(x,y){ return data[(y*R+x)*4+3] > wallThreshold; }
+
+    const visited = new Uint8Array(R*R);
+    const rawRegions = [];
+
+    for (let y=0; y<R; y++){
+      for (let x=0; x<R; x++){
+        const idx0 = y*R+x;
+        if (visited[idx0]) continue;
+        if (isWall(x,y)){ visited[idx0] = 1; continue; }
+        const stack = [[x,y]];
+        visited[idx0] = 1;
+        let sumX = 0, sumY = 0, count = 0, touchesBorder = false;
+        const pixelsX = [], pixelsY = [];
+        while (stack.length){
+          const cur = stack.pop();
+          const cx = cur[0], cy = cur[1];
+          sumX += cx; sumY += cy; count++;
+          pixelsX.push(cx); pixelsY.push(cy);
+          if (cx===0 || cy===0 || cx===R-1 || cy===R-1) touchesBorder = true;
+          const nbrs = [[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]];
+          for (let ni=0; ni<4; ni++){
+            const nx = nbrs[ni][0], ny = nbrs[ni][1];
+            if (nx<0 || ny<0 || nx>=R || ny>=R) continue;
+            const nidx = ny*R+nx;
+            if (visited[nidx]) continue;
+            if (isWall(nx,ny)){ visited[nidx] = 1; continue; }
+            visited[nidx] = 1;
+            stack.push([nx,ny]);
+          }
+        }
+        if (touchesBorder || count < 25) continue;
+        rawRegions.push({ cx: sumX/count, cy: sumY/count, px: pixelsX, py: pixelsY });
+      }
+    }
+
+    const rand = mulberry32((book[pageId].seed ^ 0x9E3779B9) >>> 0);
+    const numberMap = new Int16Array(R*R).fill(-1);
+    const regions = rawRegions.map(function(r){
+      const number = 1 + Math.floor(rand() * NUM_LEGEND_COLORS.length);
+      for (let i=0; i<r.px.length; i++) numberMap[r.py[i]*R + r.px[i]] = number;
+      return { number: number, nx: (r.cx+0.5)/R, ny: (r.cy+0.5)/R };
+    });
+
+    const layout = { R: R, numberMap: numberMap, regions: regions };
+    numberLayoutCache[pageId] = layout;
+    return layout;
+  }
+
+  function drawNumbersOverlay(ctx, cssSize, pageId){
+    const layout = computeNumberLayout(pageId);
+    const fontSize = Math.max(9, cssSize * 0.028);
+    ctx.save();
+    ctx.font = '700 ' + fontSize + 'px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2B2A4A';
+    layout.regions.forEach(function(r){
+      ctx.fillText(String(r.number), r.nx*cssSize, r.ny*cssSize);
+    });
+    ctx.restore();
+  }
+
+  function redrawLineWithNumbers(){
+    const cssSize = currentCssSize();
+    drawPage(lctx, cssSize, book[currentPageId]);
+    if (numberMode) drawNumbersOverlay(lctx, cssSize, currentPageId);
+  }
+
+  function buildNumberLegend(){
+    numberLegend.innerHTML = '';
+    NUM_LEGEND_COLORS.forEach(function(color, i){
+      const badge = document.createElement('div');
+      badge.className = 'legend-badge';
+      const sw = document.createElement('span');
+      sw.className = 'legend-swatch';
+      sw.style.background = color;
+      sw.textContent = String(i+1);
+      badge.appendChild(sw);
+      numberLegend.appendChild(badge);
+    });
+  }
+  buildNumberLegend();
+
+  function updateNumberModeUI(){
+    btnNumberMode.textContent = 'Pintar por número: ' + (numberMode ? 'activo' : 'apagado');
+    btnNumberMode.classList.toggle('is-active', numberMode);
+    numberLegend.hidden = !numberMode;
+  }
+  btnNumberMode.addEventListener('click', function(){
+    numberMode = !numberMode;
+    try{ localStorage.setItem(NUMBER_MODE_KEY, numberMode ? '1' : '0'); }catch(e){}
+    updateNumberModeUI();
+    redrawLineWithNumbers();
+  });
+  updateNumberModeUI();
+
   /* ---------------- Balde de relleno (flood fill acotado por las líneas) ---------------- */
   function hexToRgba(hex){
     const v = hex.replace('#','');
@@ -1108,6 +1237,18 @@
     }
     return true;
   }
+  function colorForFill(pt, cssSize){
+    if (!numberMode) return hexToRgba(brush.color);
+    const layout = computeNumberLayout(currentPageId);
+    const R = layout.R;
+    const lx = Math.floor((pt.x/cssSize) * R);
+    const ly = Math.floor((pt.y/cssSize) * R);
+    if (lx<0 || ly<0 || lx>=R || ly>=R) return hexToRgba(brush.color);
+    const num = layout.numberMap[ly*R+lx];
+    if (num < 1) return hexToRgba(brush.color);
+    return hexToRgba(NUM_LEGEND_COLORS[num-1]);
+  }
+
   function doFloodFill(p){
     const cssSize = currentCssSize();
     const w = paintCanvas.width, h = paintCanvas.height;
@@ -1118,7 +1259,7 @@
       const px = Math.floor(pt.x * (w / cssSize));
       const py = Math.floor(pt.y * (h / cssSize));
       if (px<0 || py<0 || px>=w || py>=h) return;
-      const filled = floodFillSpan(paintImgData.data, lineData, w, h, px, py, hexToRgba(brush.color));
+      const filled = floodFillSpan(paintImgData.data, lineData, w, h, px, py, colorForFill(pt, cssSize));
       if (filled) anyFilled = true;
     });
     if (anyFilled) pctx.putImageData(paintImgData, 0, 0);
