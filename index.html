@@ -258,6 +258,10 @@
         <div class="field-label"><span>Grosor de pincel</span><b id="valBrush">10</b></div>
         <input type="range" id="rangeBrush" min="2" max="40" value="10">
       </div>
+      <div class="field">
+        <div class="field-label"><span>Opacidad (efecto acuarela)</span><b id="valOpacity">100%</b></div>
+        <input type="range" id="rangeOpacity" min="10" max="100" step="5" value="100">
+      </div>
       <div class="row-buttons">
         <button id="btnToolBrush" class="btn-ghost is-active">Pincel</button>
         <button id="btnToolBucket" class="btn-ghost">Balde</button>
@@ -433,7 +437,7 @@
   }
 
   let book = loadBook();
-  let brush = { color: PALETTE[0], size: 10 };
+  let brush = { color: PALETTE[0], size: 10, opacity: 1 };
   try{
     const rawBrush = localStorage.getItem(BRUSH_KEY);
     if (rawBrush) Object.assign(brush, JSON.parse(rawBrush));
@@ -475,6 +479,8 @@
   const fsUndo = document.getElementById('fsUndo');
   const rangeBrush = document.getElementById('rangeBrush');
   const valBrush = document.getElementById('valBrush');
+  const rangeOpacity = document.getElementById('rangeOpacity');
+  const valOpacity = document.getElementById('valOpacity');
   const btnToolBrush = document.getElementById('btnToolBrush');
   const btnToolBucket = document.getElementById('btnToolBucket');
   const btnToolEraser = document.getElementById('btnToolEraser');
@@ -695,17 +701,38 @@
     const ny = (evt.clientY - rect.top) / rect.height;
     return { x: nx * logicalSize, y: ny * logicalSize };
   }
-  function strokeTo(p0, p1){
-    pctx.lineCap = 'round'; pctx.lineJoin = 'round';
-    pctx.lineWidth = brush.size;
+
+  /* Lienzo auxiliar: el trazo en curso se dibuja acá a opacidad plena, para que no
+     queden franjas oscuras donde el trazo se solapa consigo mismo. Recién al soltar
+     el dedo se compone sobre el lienzo real con la opacidad elegida (efecto acuarela:
+     se mezcla con lo que ya estaba pintado debajo, pero el trazo en sí queda parejo). */
+  const scratchCanvas = document.createElement('canvas');
+  const sctx = scratchCanvas.getContext('2d');
+  function beginScratchStroke(){
+    sizeCanvas(scratchCanvas, currentCssSize());
+  }
+  function flushScratchStroke(){
+    const cssSize = currentCssSize();
+    pctx.save();
+    pctx.globalAlpha = brush.opacity;
     pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-    pctx.strokeStyle = brush.color;
-    pctx.beginPath(); pctx.moveTo(p0.x, p0.y); pctx.lineTo(p1.x, p1.y); pctx.stroke();
+    pctx.drawImage(scratchCanvas, 0, 0, cssSize, cssSize);
+    pctx.restore();
+  }
+
+  function strokeTo(p0, p1){
+    sctx.lineCap = 'round'; sctx.lineJoin = 'round';
+    sctx.lineWidth = brush.size;
+    sctx.globalCompositeOperation = 'source-over';
+    sctx.globalAlpha = 1;
+    sctx.strokeStyle = brush.color;
+    sctx.beginPath(); sctx.moveTo(p0.x, p0.y); sctx.lineTo(p1.x, p1.y); sctx.stroke();
   }
   function dotAt(p){
-    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-    pctx.fillStyle = brush.color;
-    pctx.beginPath(); pctx.arc(p.x, p.y, brush.size/2, 0, Math.PI*2); pctx.fill();
+    sctx.globalCompositeOperation = 'source-over';
+    sctx.globalAlpha = 1;
+    sctx.fillStyle = brush.color;
+    sctx.beginPath(); sctx.arc(p.x, p.y, brush.size/2, 0, Math.PI*2); sctx.fill();
   }
 
   /* ---------------- Balde de relleno (flood fill acotado por las líneas) ---------------- */
@@ -860,6 +887,7 @@
     pushUndo();
     drawing = true;
     lastPoint = p;
+    beginScratchStroke();
     dotAt(lastPoint);
   });
   paintCanvas.addEventListener('pointermove', function(e){
@@ -877,6 +905,7 @@
   function endStroke(){
     if (!drawing) return;
     drawing = false; lastPoint = null;
+    flushScratchStroke();
     persistCurrentPaint();
   }
   function endPointer(e){
@@ -960,6 +989,14 @@
   rangeBrush.addEventListener('input', function(){
     brush.size = parseInt(rangeBrush.value, 10);
     valBrush.textContent = brush.size;
+    saveBrush();
+  });
+  rangeOpacity.value = Math.round(brush.opacity * 100);
+  valOpacity.textContent = rangeOpacity.value + '%';
+  rangeOpacity.addEventListener('input', function(){
+    const pct = parseInt(rangeOpacity.value, 10);
+    brush.opacity = pct / 100;
+    valOpacity.textContent = pct + '%';
     saveBrush();
   });
   btnToolBrush.addEventListener('click', function(){ setTool('brush'); });
