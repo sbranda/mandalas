@@ -179,6 +179,8 @@
     width:18px; height:18px; border-radius:50%; background: var(--gold); border:2px solid var(--bg-night); cursor:pointer;
   }
 
+  .palette-preset-row{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .preset-chip{ font-size:0.72rem; padding:7px 11px; }
   .palette-grid{
     display:flex; flex-wrap:wrap; gap:7px; justify-content:center;
     max-height:168px; overflow-y:auto; padding:4px 2px;
@@ -280,6 +282,13 @@
     </div>
 
     <div class="control-panel">
+      <div class="palette-preset-row" id="palettePresetRow">
+        <button class="btn-ghost preset-chip is-active" data-preset="full">Todos</button>
+        <button class="btn-ghost preset-chip" data-preset="autumn">Otoño</button>
+        <button class="btn-ghost preset-chip" data-preset="pastel">Pastel</button>
+        <button class="btn-ghost preset-chip" data-preset="neon">Neón</button>
+        <button class="btn-ghost preset-chip" data-preset="earth">Tierra</button>
+      </div>
       <div class="palette-grid" id="paletteWheel"></div>
       <div class="field">
         <div class="field-label"><span>Grosor de pincel</span><b id="valBrush">10</b></div>
@@ -648,7 +657,21 @@
     return colors;
   }
 
-  const PALETTE = generatePalette();
+  const FULL_PALETTE = generatePalette();
+  const PRESET_PALETTES = {
+    full: FULL_PALETTE,
+    autumn: ['#8B2E1F','#B5451D','#D9691E','#E8933D','#C9A227','#8A6D1D','#6B4226','#A0522D','#5C3A21','#7A5C3E','#4A5D23','#6B7A2E','#9C4A3C','#D97742','#B08D57','#3E2A1F'],
+    pastel: ['#F7C8CC','#F9DCC4','#FCE8B4','#E8F0C0','#C6E8D5','#BEE3EE','#C9D6F0','#D9C9F0','#F0C9E4','#F4D9D9','#DDEBDD','#E5D8C8','#F0E4D7','#D8E8F0','#E8D8F0','#D8F0E4'],
+    neon: ['#FF1744','#FF6D00','#FFEA00','#76FF03','#00E676','#00E5FF','#2979FF','#D500F9','#FF4081','#F50057','#00B8D4','#AEEA00','#FF3D00','#C6FF00','#651FFF','#00C853'],
+    earth: ['#7A5230','#8C6239','#A0785A','#B99470','#C9A876','#D9C19A','#5C4934','#6B5842','#4A5D3A','#6B7A4E','#8C7355','#3E3226','#B0673E','#8B5A2B','#5E3A1F','#A67B5B']
+  };
+  const PALETTE_KEY = 'mandalas:palette:v1';
+  let currentPaletteName = 'full';
+  try{
+    const rawPreset = localStorage.getItem(PALETTE_KEY);
+    if (rawPreset && PRESET_PALETTES[rawPreset]) currentPaletteName = rawPreset;
+  }catch(e){}
+  let PALETTE = PRESET_PALETTES[currentPaletteName];
 
   function makeRandomPage(id){
     const weights = buildThemeWeights();
@@ -1696,8 +1719,28 @@
     });
   }
 
-  buildPalette();
-  buildFsPalette();
+  const palettePresetRow = document.getElementById('palettePresetRow');
+  function applyPalettePreset(name){
+    currentPaletteName = name;
+    PALETTE = PRESET_PALETTES[name];
+    try{ localStorage.setItem(PALETTE_KEY, name); }catch(e){}
+    const chips = palettePresetRow.querySelectorAll('button');
+    for (let i=0; i<chips.length; i++){
+      chips[i].classList.toggle('is-active', chips[i].getAttribute('data-preset') === name);
+    }
+    buildPalette();
+    buildFsPalette();
+  }
+  (function bindPalettePresets(){
+    const chips = palettePresetRow.querySelectorAll('button');
+    for (let i=0; i<chips.length; i++){
+      chips[i].addEventListener('click', function(){
+        applyPalettePreset(this.getAttribute('data-preset'));
+      });
+    }
+  })();
+
+  applyPalettePreset(currentPaletteName);
   showIndex();
 })();
 </script>
