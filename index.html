@@ -136,7 +136,8 @@
   .view-anim{ animation: viewIn 220ms ease; }
   @keyframes paperIn{ from{ opacity:0; transform:scale(0.97); } to{ opacity:1; transform:scale(1); } }
   .paper-anim{ animation: paperIn 180ms ease; }
-  .paper canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .zoom-content{ position:absolute; inset:0; transform-origin:0 0; touch-action:none; }
+  .zoom-content canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   #lineCanvas{ pointer-events:none; }
   .btn-expand{
     position:absolute; top:8px; right:8px; z-index:5;
@@ -146,6 +147,7 @@
     display:flex; align-items:center; justify-content:center;
   }
   .btn-expand:active{ transform: scale(0.9); }
+  .btn-expand#btnResetZoom{ font-size:0.62rem; font-weight:600; }
 
   .control-panel{
     background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
@@ -234,8 +236,11 @@
       <button id="btnPrev" class="btn-round" aria-label="Página anterior">‹</button>
       <div class="canvas-frame" id="canvasFrame">
         <div class="paper" id="paperWrap">
-          <canvas id="paintCanvas"></canvas>
-          <canvas id="lineCanvas"></canvas>
+          <div class="zoom-content" id="zoomContent">
+            <canvas id="paintCanvas"></canvas>
+            <canvas id="lineCanvas"></canvas>
+          </div>
+          <button id="btnResetZoom" class="btn-expand" style="right:44px;" aria-label="Restablecer zoom" hidden>1:1</button>
           <button id="btnExpand" class="btn-expand" aria-label="Ver mándala en pantalla completa">⤢</button>
         </div>
         <div class="fs-toolbar" id="fsToolbar">
@@ -456,6 +461,8 @@
   const btnNext = document.getElementById('btnNext');
   const btnIndex = document.getElementById('btnIndex');
   const paperWrap = document.getElementById('paperWrap');
+  const zoomContent = document.getElementById('zoomContent');
+  const btnResetZoom = document.getElementById('btnResetZoom');
   const lineCanvas = document.getElementById('lineCanvas');
   const paintCanvas = document.getElementById('paintCanvas');
   const lctx = lineCanvas.getContext('2d');
@@ -581,6 +588,7 @@
     btnPrev.disabled = id === 0;
     btnNext.disabled = id === PAGE_COUNT - 1;
     undoStack = [];
+    resetZoom(false);
 
     const cssSize = currentCssSize();
     sizeCanvas(paintCanvas, cssSize);
@@ -640,6 +648,7 @@
     if (viewPage.style.display !== 'flex') return;
     const dataUrl = paintCanvas.toDataURL();
     const cssSize = currentCssSize();
+    resetZoom(false);
     sizeCanvas(paintCanvas, cssSize);
     sizeCanvas(lineCanvas, cssSize);
     drawPage(lctx, cssSize, book[currentPageId]);
@@ -655,6 +664,7 @@
     canvasFrame.classList.toggle('is-fullscreen', paperFullscreen);
     btnExpand.textContent = paperFullscreen ? '✕' : '⤢';
     btnExpand.setAttribute('aria-label', paperFullscreen ? 'Cerrar pantalla completa' : 'Ver mándala en pantalla completa');
+    resetZoom(false);
     requestAnimationFrame(resizeCurrentPageCanvases);
   }
   btnExpand.addEventListener('click', toggleFullscreenView);
@@ -680,7 +690,10 @@
 
   function getPoint(evt){
     const rect = paintCanvas.getBoundingClientRect();
-    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    const logicalSize = currentCssSize();
+    const nx = (evt.clientX - rect.left) / rect.width;
+    const ny = (evt.clientY - rect.top) / rect.height;
+    return { x: nx * logicalSize, y: ny * logicalSize };
   }
   function strokeTo(p0, p1){
     pctx.lineCap = 'round'; pctx.lineJoin = 'round';
@@ -758,8 +771,85 @@
     if (filled) pctx.putImageData(paintImgData, 0, 0);
   }
 
+  /* ---------------- Zoom con pellizco (pinch-to-zoom) ---------------- */
+  const MIN_ZOOM = 1, MAX_ZOOM = 4;
+  let zoomScale = 1, zoomX = 0, zoomY = 0;
+  let pinchState = null;
+  const activePointers = new Map();
+
+  function applyZoomTransform(){
+    zoomContent.style.transform = 'translate(' + zoomX + 'px,' + zoomY + 'px) scale(' + zoomScale + ')';
+    btnResetZoom.hidden = zoomScale <= 1.001;
+  }
+  function resetZoom(animate){
+    if (animate){
+      zoomContent.style.transition = 'transform 200ms ease';
+      setTimeout(function(){ zoomContent.style.transition = ''; }, 220);
+    }
+    zoomScale = 1; zoomX = 0; zoomY = 0;
+    applyZoomTransform();
+  }
+  btnResetZoom.addEventListener('click', function(){ resetZoom(true); });
+
+  function pointerArray(){ return Array.from(activePointers.values()); }
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+  function beginPinch(){
+    const pts = pointerArray();
+    if (pts.length < 2) return;
+    pinchState = {
+      startDist: dist(pts[0], pts[1]),
+      startScale: zoomScale,
+      startMid: mid(pts[0], pts[1]),
+      startTranslate: { x: zoomX, y: zoomY }
+    };
+  }
+
+  function clampZoom(){
+    const size = currentCssSize();
+    zoomScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomScale));
+    const scaledSize = size * zoomScale;
+    const minT = size - scaledSize;
+    zoomX = Math.min(0, Math.max(minT, zoomX));
+    zoomY = Math.min(0, Math.max(minT, zoomY));
+    if (zoomScale <= 1.001){ zoomScale = 1; zoomX = 0; zoomY = 0; }
+    applyZoomTransform();
+  }
+
+  function updatePinch(){
+    if (!pinchState) beginPinch();
+    if (!pinchState) return;
+    const pts = pointerArray();
+    if (pts.length < 2) return;
+    const newDist = dist(pts[0], pts[1]);
+    const newMid = mid(pts[0], pts[1]);
+    let newScale = pinchState.startScale * (newDist / pinchState.startDist);
+    newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newScale));
+
+    const rect = paperWrap.getBoundingClientRect();
+    const midStartLocal = { x: pinchState.startMid.x - rect.left, y: pinchState.startMid.y - rect.top };
+    const midNewLocal = { x: newMid.x - rect.left, y: newMid.y - rect.top };
+    const contentX = (midStartLocal.x - pinchState.startTranslate.x) / pinchState.startScale;
+    const contentY = (midStartLocal.y - pinchState.startTranslate.y) / pinchState.startScale;
+
+    zoomScale = newScale;
+    zoomX = midNewLocal.x - contentX * newScale;
+    zoomY = midNewLocal.y - contentY * newScale;
+    applyZoomTransform();
+  }
+
   paintCanvas.addEventListener('pointerdown', function(e){
     paintCanvas.setPointerCapture(e.pointerId);
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size >= 2){
+      if (drawing){ drawing = false; lastPoint = null; }
+      pinchState = null;
+      beginPinch();
+      return;
+    }
+
     const p = getPoint(e);
     if (tool === 'bucket'){
       pushUndo();
@@ -773,6 +863,12 @@
     dotAt(lastPoint);
   });
   paintCanvas.addEventListener('pointermove', function(e){
+    if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size >= 2){
+      updatePinch();
+      return;
+    }
     if (!drawing) return;
     const p = getPoint(e);
     strokeTo(lastPoint, p);
@@ -783,9 +879,17 @@
     drawing = false; lastPoint = null;
     persistCurrentPaint();
   }
-  paintCanvas.addEventListener('pointerup', endStroke);
-  paintCanvas.addEventListener('pointercancel', endStroke);
-  paintCanvas.addEventListener('pointerleave', endStroke);
+  function endPointer(e){
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2 && pinchState){
+      pinchState = null;
+      clampZoom();
+    }
+    endStroke();
+  }
+  paintCanvas.addEventListener('pointerup', endPointer);
+  paintCanvas.addEventListener('pointercancel', endPointer);
+  paintCanvas.addEventListener('pointerleave', endPointer);
 
   function buildPalette(){
     paletteWheel.innerHTML = '';
