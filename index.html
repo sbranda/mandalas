@@ -1079,8 +1079,15 @@
      se mezcla con lo que ya estaba pintado debajo, pero el trazo en sí queda parejo). */
   const scratchCanvas = document.createElement('canvas');
   const sctx = scratchCanvas.getContext('2d', { desynchronized: true });
+  let scratchSizedFor = -1;
   function beginScratchStroke(){
-    sizeCanvas(scratchCanvas, currentCssSize());
+    const cssSize = currentCssSize();
+    if (scratchSizedFor !== cssSize){
+      sizeCanvas(scratchCanvas, cssSize);
+      scratchSizedFor = cssSize;
+    } else {
+      sctx.clearRect(0, 0, cssSize, cssSize);
+    }
   }
   function flushScratchStroke(){
     const cssSize = currentCssSize();
