@@ -268,6 +268,9 @@
         <button id="btnToolEraser" class="btn-ghost">Goma</button>
       </div>
       <div class="row-buttons">
+        <button id="btnMirror" class="btn-ghost btn-block">Pintado espejado: apagado</button>
+      </div>
+      <div class="row-buttons">
         <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
       </div>
       <div class="row-buttons">
@@ -589,6 +592,7 @@
     viewPage.style.display = 'flex';
     btnNewBook.hidden = true;
     btnSave.hidden = false;
+    updateMirrorLabel();
     topSub.textContent = 'Página ' + (id + 1) + ' de ' + PAGE_COUNT;
     pageProgressFill.style.width = (((id + 1) / PAGE_COUNT) * 100) + '%';
     btnPrev.disabled = id === 0;
@@ -702,6 +706,44 @@
     return { x: nx * logicalSize, y: ny * logicalSize };
   }
 
+  /* ---------------- Pintado espejado (simetría rotacional de la página) ---------------- */
+  const MIRROR_KEY = 'mandalas:mirror:v1';
+  let mirrorPaint = false;
+  try{ mirrorPaint = localStorage.getItem(MIRROR_KEY) === '1'; }catch(e){}
+  const btnMirror = document.getElementById('btnMirror');
+  function updateMirrorLabel(){
+    const segs = (book[currentPageId] && book[currentPageId].segments) || 0;
+    btnMirror.textContent = mirrorPaint
+      ? 'Pintado espejado: activo en ' + segs + ' ejes'
+      : 'Pintado espejado: apagado';
+    btnMirror.classList.toggle('is-active', mirrorPaint);
+  }
+  btnMirror.addEventListener('click', function(){
+    mirrorPaint = !mirrorPaint;
+    try{ localStorage.setItem(MIRROR_KEY, mirrorPaint ? '1' : '0'); }catch(e){}
+    updateMirrorLabel();
+  });
+  function rotatePoint(p, angle){
+    const c = currentCssSize() / 2;
+    const dx = p.x - c, dy = p.y - c;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    return { x: c + dx*cos - dy*sin, y: c + dx*sin + dy*cos };
+  }
+  function forEachMirror(p, callback){
+    callback(p);
+    if (!mirrorPaint) return;
+    const segs = (book[currentPageId] && book[currentPageId].segments) || 1;
+    const angle = (Math.PI*2) / segs;
+    for (let k=1; k<segs; k++) callback(rotatePoint(p, angle*k));
+  }
+  function forEachMirrorPair(p0, p1, callback){
+    callback(p0, p1);
+    if (!mirrorPaint) return;
+    const segs = (book[currentPageId] && book[currentPageId].segments) || 1;
+    const angle = (Math.PI*2) / segs;
+    for (let k=1; k<segs; k++) callback(rotatePoint(p0, angle*k), rotatePoint(p1, angle*k));
+  }
+
   /* Lienzo auxiliar: el trazo en curso se dibuja acá a opacidad plena, para que no
      queden franjas oscuras donde el trazo se solapa consigo mismo. Recién al soltar
      el dedo se compone sobre el lienzo real con la opacidad elegida (efecto acuarela:
@@ -726,13 +768,17 @@
     sctx.globalCompositeOperation = 'source-over';
     sctx.globalAlpha = 1;
     sctx.strokeStyle = brush.color;
-    sctx.beginPath(); sctx.moveTo(p0.x, p0.y); sctx.lineTo(p1.x, p1.y); sctx.stroke();
+    forEachMirrorPair(p0, p1, function(a, b){
+      sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke();
+    });
   }
   function dotAt(p){
     sctx.globalCompositeOperation = 'source-over';
     sctx.globalAlpha = 1;
     sctx.fillStyle = brush.color;
-    sctx.beginPath(); sctx.arc(p.x, p.y, brush.size/2, 0, Math.PI*2); sctx.fill();
+    forEachMirror(p, function(pt){
+      sctx.beginPath(); sctx.arc(pt.x, pt.y, brush.size/2, 0, Math.PI*2); sctx.fill();
+    });
   }
 
   /* ---------------- Balde de relleno (flood fill acotado por las líneas) ---------------- */
@@ -789,13 +835,17 @@
   function doFloodFill(p){
     const cssSize = currentCssSize();
     const w = paintCanvas.width, h = paintCanvas.height;
-    const px = Math.floor(p.x * (w / cssSize));
-    const py = Math.floor(p.y * (h / cssSize));
-    if (px<0 || py<0 || px>=w || py>=h) return;
     const lineData = lctx.getImageData(0,0,w,h).data;
     const paintImgData = pctx.getImageData(0,0,w,h);
-    const filled = floodFillSpan(paintImgData.data, lineData, w, h, px, py, hexToRgba(brush.color));
-    if (filled) pctx.putImageData(paintImgData, 0, 0);
+    let anyFilled = false;
+    forEachMirror(p, function(pt){
+      const px = Math.floor(pt.x * (w / cssSize));
+      const py = Math.floor(pt.y * (h / cssSize));
+      if (px<0 || py<0 || px>=w || py>=h) return;
+      const filled = floodFillSpan(paintImgData.data, lineData, w, h, px, py, hexToRgba(brush.color));
+      if (filled) anyFilled = true;
+    });
+    if (anyFilled) pctx.putImageData(paintImgData, 0, 0);
   }
 
   /* ---------------- Zoom con pellizco (pinch-to-zoom) ---------------- */
