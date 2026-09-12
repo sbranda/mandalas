@@ -294,10 +294,6 @@
         <div class="field-label"><span>Grosor de pincel</span><b id="valBrush">10</b></div>
         <input type="range" id="rangeBrush" min="2" max="40" value="10">
       </div>
-      <div class="field">
-        <div class="field-label"><span>Opacidad (efecto acuarela)</span><b id="valOpacity">100%</b></div>
-        <input type="range" id="rangeOpacity" min="10" max="100" step="5" value="100">
-      </div>
       <div class="row-buttons">
         <button id="btnToolBrush" class="btn-ghost is-active">Pincel</button>
         <button id="btnToolBucket" class="btn-ghost">Balde</button>
@@ -730,7 +726,7 @@
   }
 
   let book = loadBook();
-  let brush = { color: PALETTE[0], size: 10, opacity: 1 };
+  let brush = { color: PALETTE[0], size: 10 };
   try{
     const rawBrush = localStorage.getItem(BRUSH_KEY);
     if (rawBrush) Object.assign(brush, JSON.parse(rawBrush));
@@ -793,8 +789,6 @@
   const fsUndo = document.getElementById('fsUndo');
   const rangeBrush = document.getElementById('rangeBrush');
   const valBrush = document.getElementById('valBrush');
-  const rangeOpacity = document.getElementById('rangeOpacity');
-  const valOpacity = document.getElementById('valOpacity');
   const btnToolBrush = document.getElementById('btnToolBrush');
   const btnToolBucket = document.getElementById('btnToolBucket');
   const btnToolEraser = document.getElementById('btnToolEraser');
@@ -1073,47 +1067,20 @@
     for (let k=1; k<segs; k++) callback(rotatePoint(p0, angle*k), rotatePoint(p1, angle*k));
   }
 
-  /* Lienzo auxiliar: el trazo en curso se dibuja acá a opacidad plena, para que no
-     queden franjas oscuras donde el trazo se solapa consigo mismo. Recién al soltar
-     el dedo se compone sobre el lienzo real con la opacidad elegida (efecto acuarela:
-     se mezcla con lo que ya estaba pintado debajo, pero el trazo en sí queda parejo). */
-  const scratchCanvas = document.createElement('canvas');
-  const sctx = scratchCanvas.getContext('2d', { desynchronized: true });
-  let scratchSizedFor = -1;
-  function beginScratchStroke(){
-    const cssSize = currentCssSize();
-    if (scratchSizedFor !== cssSize){
-      sizeCanvas(scratchCanvas, cssSize);
-      scratchSizedFor = cssSize;
-    } else {
-      sctx.clearRect(0, 0, cssSize, cssSize);
-    }
-  }
-  function flushScratchStroke(){
-    const cssSize = currentCssSize();
-    pctx.save();
-    pctx.globalAlpha = brush.opacity;
-    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-    pctx.drawImage(scratchCanvas, 0, 0, cssSize, cssSize);
-    pctx.restore();
-  }
-
   function strokeTo(p0, p1){
-    sctx.lineCap = 'round'; sctx.lineJoin = 'round';
-    sctx.lineWidth = brush.size;
-    sctx.globalCompositeOperation = 'source-over';
-    sctx.globalAlpha = 1;
-    sctx.strokeStyle = brush.color;
+    pctx.lineCap = 'round'; pctx.lineJoin = 'round';
+    pctx.lineWidth = brush.size;
+    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    pctx.strokeStyle = brush.color;
     forEachMirrorPair(p0, p1, function(a, b){
-      sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke();
+      pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
     });
   }
   function dotAt(p){
-    sctx.globalCompositeOperation = 'source-over';
-    sctx.globalAlpha = 1;
-    sctx.fillStyle = brush.color;
+    pctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    pctx.fillStyle = brush.color;
     forEachMirror(p, function(pt){
-      sctx.beginPath(); sctx.arc(pt.x, pt.y, brush.size/2, 0, Math.PI*2); sctx.fill();
+      pctx.beginPath(); pctx.arc(pt.x, pt.y, brush.size/2, 0, Math.PI*2); pctx.fill();
     });
   }
 
@@ -1409,7 +1376,6 @@
     pushUndo();
     drawing = true;
     lastPoint = p;
-    beginScratchStroke();
     dotAt(lastPoint);
   });
   let pendingMovePoint = null;
@@ -1440,7 +1406,6 @@
     if (!drawing) return;
     flushPendingMove();
     drawing = false; lastPoint = null;
-    flushScratchStroke();
     persistCurrentPaintDebounced();
   }
   function endPointer(e){
@@ -1524,14 +1489,6 @@
   rangeBrush.addEventListener('input', function(){
     brush.size = parseInt(rangeBrush.value, 10);
     valBrush.textContent = brush.size;
-    saveBrush();
-  });
-  rangeOpacity.value = Math.round(brush.opacity * 100);
-  valOpacity.textContent = rangeOpacity.value + '%';
-  rangeOpacity.addEventListener('input', function(){
-    const pct = parseInt(rangeOpacity.value, 10);
-    brush.opacity = pct / 100;
-    valOpacity.textContent = pct + '%';
     saveBrush();
   });
   btnToolBrush.addEventListener('click', function(){ setTool('brush'); });
