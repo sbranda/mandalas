@@ -320,7 +320,7 @@
     }
   }
 
-  function drawPage(ctx, size, page){
+  function drawMandalaPage(ctx, size, page){
     const rand = mulberry32(page.seed);
     const segments = page.segments, layers = page.layers;
     ctx.clearRect(0,0,size,size);
@@ -363,11 +363,223 @@
     ctx.restore();
   }
 
+  function drawFlowerPage(ctx, size, page){
+    ctx.clearRect(0,0,size,size);
+    ctx.save();
+    ctx.translate(size/2, size/2);
+    ctx.strokeStyle = '#2B2A4A';
+    ctx.lineWidth = Math.max(1.2, size * 0.0028);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const petals = page.petals || 6;
+    const outerR = size * 0.42;
+    const innerR = size * 0.16;
+
+    for (let i=0; i<petals; i++){
+      ctx.save();
+      ctx.rotate((Math.PI*2/petals) * i);
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.bezierCurveTo(outerR*0.38, -outerR*0.28, outerR*0.38, -outerR*0.78, 0, -outerR);
+      ctx.bezierCurveTo(-outerR*0.38, -outerR*0.78, -outerR*0.38, -outerR*0.28, 0, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (let i=0; i<petals; i++){
+      ctx.save();
+      ctx.rotate((Math.PI*2/petals) * (i + 0.5));
+      const r = innerR * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.bezierCurveTo(r*0.4, -r*0.3, r*0.4, -r*0.8, 0, -r);
+      ctx.bezierCurveTo(-r*0.4, -r*0.8, -r*0.4, -r*0.3, 0, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(0,0, innerR*0.45, 0, Math.PI*2); ctx.stroke();
+    const seeds = 8;
+    for (let i=0; i<seeds; i++){
+      const a = (Math.PI*2/seeds) * i;
+      const r0 = innerR*0.15, r1 = innerR*0.42;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r0, Math.sin(a)*r0);
+      ctx.lineTo(Math.cos(a)*r1, Math.sin(a)*r1);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(0,0, size*0.47, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  const ANIMAL_DRAWERS = {
+    butterfly: function(ctx, s){
+      ctx.beginPath(); ctx.ellipse(0,0, s*0.05, s*0.42, 0,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0,-s*0.05);
+      ctx.bezierCurveTo(s*0.42, -s*0.5, s*0.5, -s*0.05, s*0.07, s*0.02);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0,-s*0.05);
+      ctx.bezierCurveTo(-s*0.42, -s*0.5, -s*0.5, -s*0.05, -s*0.07, s*0.02);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s*0.02);
+      ctx.bezierCurveTo(s*0.28, s*0.14, s*0.28, s*0.4, s*0.02, s*0.38);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s*0.02);
+      ctx.bezierCurveTo(-s*0.28, s*0.14, -s*0.28, s*0.4, -s*0.02, s*0.38);
+      ctx.closePath(); ctx.stroke();
+      [[s*0.2,-s*0.25,s*0.055],[-s*0.2,-s*0.25,s*0.055],[s*0.12,s*0.2,s*0.04],[-s*0.12,s*0.2,s*0.04]].forEach(function(c){
+        ctx.beginPath(); ctx.arc(c[0],c[1],c[2],0,Math.PI*2); ctx.stroke();
+      });
+      ctx.beginPath(); ctx.moveTo(0,-s*0.4); ctx.quadraticCurveTo(s*0.07,-s*0.52, s*0.1,-s*0.58); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-s*0.4); ctx.quadraticCurveTo(-s*0.07,-s*0.52, -s*0.1,-s*0.58); ctx.stroke();
+    },
+    fish: function(ctx, s){
+      ctx.beginPath(); ctx.ellipse(0,0, s*0.4, s*0.24, 0,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s*0.34, 0); ctx.lineTo(s*0.62, -s*0.22); ctx.lineTo(s*0.62, s*0.22);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.04, -s*0.23); ctx.quadraticCurveTo(s*0.06, -s*0.45, s*0.16, -s*0.22); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.04, s*0.23); ctx.quadraticCurveTo(s*0.04, s*0.4, s*0.14, s*0.22); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s*0.22,-s*0.05,s*0.036,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-s*0.14,-s*0.16); ctx.quadraticCurveTo(-s*0.2,0,-s*0.14,s*0.16); ctx.stroke();
+      for (let i=0;i<3;i++){
+        ctx.beginPath();
+        ctx.arc(-s*0.02+i*s*0.12, 0, s*0.075, Math.PI*0.2, Math.PI*0.8);
+        ctx.stroke();
+      }
+    },
+    cat: function(ctx, s){
+      ctx.beginPath(); ctx.arc(0,0,s*0.4,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.28,-s*0.26); ctx.lineTo(-s*0.38,-s*0.54); ctx.lineTo(-s*0.06,-s*0.36);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s*0.28,-s*0.26); ctx.lineTo(s*0.38,-s*0.54); ctx.lineTo(s*0.06,-s*0.36);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s*0.14,-s*0.02, s*0.056,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s*0.14,-s*0.02, s*0.056,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.032, s*0.07); ctx.lineTo(s*0.032, s*0.07); ctx.lineTo(0, s*0.12);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, s*0.12); ctx.quadraticCurveTo(-s*0.06, s*0.18, -s*0.13, s*0.14);
+      ctx.moveTo(0, s*0.12); ctx.quadraticCurveTo(s*0.06, s*0.18, s*0.13, s*0.14);
+      ctx.stroke();
+      [-1,1].forEach(function(side){
+        for (let i=0;i<3;i++){
+          ctx.beginPath();
+          ctx.moveTo(side*s*0.2, s*0.06+i*s*0.032);
+          ctx.lineTo(side*s*0.46, s*0.02+i*s*0.048);
+          ctx.stroke();
+        }
+      });
+    },
+    owl: function(ctx, s){
+      ctx.beginPath(); ctx.ellipse(0, s*0.06, s*0.34, s*0.4, 0,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.2,-s*0.3); ctx.lineTo(-s*0.26,-s*0.5); ctx.lineTo(-s*0.08,-s*0.34);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s*0.2,-s*0.3); ctx.lineTo(s*0.26,-s*0.5); ctx.lineTo(s*0.08,-s*0.34);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s*0.13,-s*0.06, s*0.14,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s*0.13,-s*0.06, s*0.14,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-s*0.13,-s*0.06, s*0.056,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s*0.13,-s*0.06, s*0.056,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.04, s*0.04); ctx.lineTo(s*0.04, s*0.04); ctx.lineTo(0, s*0.13);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.32, 0); ctx.quadraticCurveTo(-s*0.42, s*0.18, -s*0.22, s*0.34);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s*0.32, 0); ctx.quadraticCurveTo(s*0.42, s*0.18, s*0.22, s*0.34);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.08, s*0.45); ctx.lineTo(-s*0.11, s*0.52);
+      ctx.moveTo(-s*0.08, s*0.45); ctx.lineTo(-s*0.05, s*0.52);
+      ctx.moveTo(s*0.08, s*0.45); ctx.lineTo(s*0.11, s*0.52);
+      ctx.moveTo(s*0.08, s*0.45); ctx.lineTo(s*0.05, s*0.52);
+      ctx.stroke();
+    }
+  };
+  const ANIMAL_IDS = Object.keys(ANIMAL_DRAWERS);
+
+  function drawAnimalPage(ctx, size, page){
+    ctx.clearRect(0,0,size,size);
+    ctx.save();
+    ctx.translate(size/2, size/2);
+    ctx.strokeStyle = '#2B2A4A';
+    ctx.lineWidth = Math.max(1.5, size * 0.0042);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const drawer = ANIMAL_DRAWERS[page.animal] || ANIMAL_DRAWERS.cat;
+    drawer(ctx, size);
+    ctx.restore();
+  }
+
+  function drawTinyFlower(ctx, r){
+    const petals = 5;
+    for (let i=0; i<petals; i++){
+      ctx.save();
+      ctx.rotate((Math.PI*2/petals) * i);
+      ctx.beginPath();
+      ctx.ellipse(0, -r*0.55, r*0.32, r*0.55, 0, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(0,0, r*0.22, 0, Math.PI*2); ctx.stroke();
+  }
+
+  function drawLetterPage(ctx, size, page){
+    ctx.clearRect(0,0,size,size);
+    ctx.save();
+    ctx.translate(size/2, size/2);
+    ctx.strokeStyle = '#2B2A4A';
+    ctx.lineWidth = Math.max(1.3, size * 0.003);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath(); ctx.arc(0,0, size*0.46, 0, Math.PI*2); ctx.stroke();
+    const decorCount = 8;
+    for (let i=0; i<decorCount; i++){
+      const a = (Math.PI*2/decorCount) * i;
+      ctx.save();
+      ctx.translate(Math.cos(a)*size*0.46, Math.sin(a)*size*0.46);
+      ctx.rotate(a + Math.PI/2);
+      drawTinyFlower(ctx, size*0.045);
+      ctx.restore();
+    }
+
+    ctx.font = '700 ' + Math.round(size*0.46) + 'px "Fraunces", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(2, size*0.007);
+    ctx.strokeText(page.letter || 'A', 0, size*0.02);
+    ctx.restore();
+  }
+
+  function drawPage(ctx, size, page){
+    const theme = page.theme || 'mandala';
+    if (theme === 'flower') return drawFlowerPage(ctx, size, page);
+    if (theme === 'animal') return drawAnimalPage(ctx, size, page);
+    if (theme === 'letter') return drawLetterPage(ctx, size, page);
+    return drawMandalaPage(ctx, size, page);
+  }
+
   const BOOK_KEY = 'mandalas:book:v1';
   const BRUSH_KEY = 'mandalas:brush:v1';
   const PAGE_COUNT = 200;
   const SEG_OPTIONS = [6,8,10,12,14];
   const LAYER_OPTIONS = [3,4,5,6];
+  const PETAL_OPTIONS = [5,6,7,8];
+  const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const THEME_WEIGHTS = ['mandala','mandala','mandala','flower','flower','animal','letter'];
   function hslToHex(h, s, l){
     s /= 100; l /= 100;
     const k = function(n){ return (n + h/30) % 12; };
@@ -392,12 +604,19 @@
   const PALETTE = generatePalette();
 
   function makeRandomPage(id){
-    return {
-      id: id,
-      segments: SEG_OPTIONS[Math.floor(Math.random()*SEG_OPTIONS.length)],
-      layers: LAYER_OPTIONS[Math.floor(Math.random()*LAYER_OPTIONS.length)],
-      seed: Math.floor(Math.random()*1000000)
-    };
+    const theme = THEME_WEIGHTS[Math.floor(Math.random()*THEME_WEIGHTS.length)];
+    const page = { id: id, theme: theme, seed: Math.floor(Math.random()*1000000) };
+    if (theme === 'mandala'){
+      page.segments = SEG_OPTIONS[Math.floor(Math.random()*SEG_OPTIONS.length)];
+      page.layers = LAYER_OPTIONS[Math.floor(Math.random()*LAYER_OPTIONS.length)];
+    } else if (theme === 'flower'){
+      page.petals = PETAL_OPTIONS[Math.floor(Math.random()*PETAL_OPTIONS.length)];
+    } else if (theme === 'animal'){
+      page.animal = ANIMAL_IDS[Math.floor(Math.random()*ANIMAL_IDS.length)];
+    } else if (theme === 'letter'){
+      page.letter = ALPHABET[Math.floor(Math.random()*ALPHABET.length)];
+    }
+    return page;
   }
 
   function generateBook(){
@@ -711,10 +930,17 @@
   let mirrorPaint = false;
   try{ mirrorPaint = localStorage.getItem(MIRROR_KEY) === '1'; }catch(e){}
   const btnMirror = document.getElementById('btnMirror');
+  function getPageSymmetry(){
+    const page = book[currentPageId];
+    if (!page) return 1;
+    if (page.theme === 'flower') return page.petals || 1;
+    if (page.theme === 'animal' || page.theme === 'letter') return 1;
+    return page.segments || 1;
+  }
   function updateMirrorLabel(){
-    const segs = (book[currentPageId] && book[currentPageId].segments) || 0;
+    const segs = getPageSymmetry();
     btnMirror.textContent = mirrorPaint
-      ? 'Pintado espejado: activo en ' + segs + ' ejes'
+      ? (segs > 1 ? 'Pintado espejado: activo en ' + segs + ' ejes' : 'Pintado espejado: activo (esta página no tiene simetría)')
       : 'Pintado espejado: apagado';
     btnMirror.classList.toggle('is-active', mirrorPaint);
   }
@@ -732,14 +958,14 @@
   function forEachMirror(p, callback){
     callback(p);
     if (!mirrorPaint) return;
-    const segs = (book[currentPageId] && book[currentPageId].segments) || 1;
+    const segs = getPageSymmetry();
     const angle = (Math.PI*2) / segs;
     for (let k=1; k<segs; k++) callback(rotatePoint(p, angle*k));
   }
   function forEachMirrorPair(p0, p1, callback){
     callback(p0, p1);
     if (!mirrorPaint) return;
-    const segs = (book[currentPageId] && book[currentPageId].segments) || 1;
+    const segs = getPageSymmetry();
     const angle = (Math.PI*2) / segs;
     for (let k=1; k<segs; k++) callback(rotatePoint(p0, angle*k), rotatePoint(p1, angle*k));
   }
