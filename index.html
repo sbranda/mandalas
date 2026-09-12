@@ -97,6 +97,11 @@
     background: var(--gold); color:#20180a; font-size:0.62rem; font-weight:700;
     display:flex; align-items:center; justify-content:center;
   }
+  .thumb-fav-badge{
+    position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+    background: var(--bg-night); color:var(--gold); font-size:0.72rem;
+    display:flex; align-items:center; justify-content:center;
+  }
 
   #viewPage{ display:none; flex-direction:column; gap:14px; }
   .page-progress{ height:4px; border-radius:2px; background:var(--bg-panel-alt); overflow:hidden; }
@@ -230,6 +235,7 @@
     <div class="topbar-actions">
       <button id="btnMusic" class="btn-round" aria-label="Música ambiente">🎵</button>
       <button id="btnFullscreen" class="btn-round" aria-label="Pantalla completa" hidden>⛶</button>
+      <button id="btnFavorite" class="btn-round" aria-label="Marcar como favorita" hidden>☆</button>
       <button id="btnInstall" class="btn-ghost" hidden>Instalar</button>
       <button id="btnNewBook" class="btn-ghost">Libro nuevo</button>
       <button id="btnSave" class="btn-primary" hidden>Guardar</button>
@@ -243,6 +249,9 @@
         <input type="number" id="jumpInput" min="1" max="200" placeholder="N°" inputmode="numeric">
         <button id="btnJump" class="btn-ghost">Ir</button>
       </div>
+    </div>
+    <div class="theme-toggles">
+      <button id="btnFavFilter" class="btn-ghost theme-chip">☆ Ver solo favoritas</button>
     </div>
     <div class="theme-toggles">
       <span class="theme-toggles-label">Temas extra al generar libro nuevo:</span>
@@ -749,6 +758,7 @@
   const pageProgressFill = document.getElementById('pageProgressFill');
   const topSub = document.getElementById('topSub');
   const btnNewBook = document.getElementById('btnNewBook');
+  const btnFavorite = document.getElementById('btnFavorite');
   const toggleFlower = document.getElementById('toggleFlower');
   const toggleAnimal = document.getElementById('toggleAnimal');
   const toggleLetter = document.getElementById('toggleLetter');
@@ -807,19 +817,69 @@
     el.classList.add('view-anim');
   }
 
+  /* ---------------- Favoritas ---------------- */
+  const FAVORITES_KEY = 'mandalas:favorites:v1';
+  const FAV_FILTER_KEY = 'mandalas:favfilter:v1';
+  let favoriteIds = [];
+  try{
+    const rawFav = localStorage.getItem(FAVORITES_KEY);
+    if (rawFav) favoriteIds = JSON.parse(rawFav);
+  }catch(e){}
+  const favoriteSet = new Set(favoriteIds);
+  function saveFavorites(){
+    try{ localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favoriteSet))); }catch(e){}
+  }
+  function isFavorite(id){ return favoriteSet.has(id); }
+  function toggleFavorite(id){
+    if (favoriteSet.has(id)) favoriteSet.delete(id); else favoriteSet.add(id);
+    saveFavorites();
+  }
+  let showFavoritesOnly = false;
+  try{ showFavoritesOnly = localStorage.getItem(FAV_FILTER_KEY) === '1'; }catch(e){}
+  const btnFavFilter = document.getElementById('btnFavFilter');
+  function updateFavFilterUI(){
+    btnFavFilter.textContent = (showFavoritesOnly ? '★' : '☆') + ' Ver solo favoritas';
+    btnFavFilter.classList.toggle('is-active', showFavoritesOnly);
+  }
+  btnFavFilter.addEventListener('click', function(){
+    showFavoritesOnly = !showFavoritesOnly;
+    try{ localStorage.setItem(FAV_FILTER_KEY, showFavoritesOnly ? '1' : '0'); }catch(e){}
+    updateFavFilterUI();
+    renderIndex();
+  });
+  updateFavFilterUI();
+
+  function updateFavoriteButton(id){
+    const fav = isFavorite(id);
+    btnFavorite.textContent = fav ? '★' : '☆';
+    btnFavorite.classList.toggle('is-active', fav);
+    btnFavorite.setAttribute('aria-label', fav ? 'Quitar de favoritas' : 'Marcar como favorita');
+  }
+  btnFavorite.addEventListener('click', function(){
+    if (currentPageId === null) return;
+    toggleFavorite(currentPageId);
+    updateFavoriteButton(currentPageId);
+    showToast(isFavorite(currentPageId) ? 'Agregada a favoritas' : 'Quitada de favoritas');
+  });
+
   function renderIndex(){
     bookGrid.innerHTML = '';
-    let coloredCount = 0;
-    book.forEach(function(page){
+    const pagesToShow = showFavoritesOnly ? book.filter(function(p){ return isFavorite(p.id); }) : book;
+    pagesToShow.forEach(function(page){
       const item = document.createElement('button');
       item.className = 'page-thumb';
+      if (isFavorite(page.id)){
+        const favBadge = document.createElement('span');
+        favBadge.className = 'thumb-fav-badge';
+        favBadge.textContent = '★';
+        item.appendChild(favBadge);
+      }
       const canvas = document.createElement('canvas');
       canvas.width = 140; canvas.height = 140;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,140,140);
       const savedPaint = loadPagePaint(page.id);
       if (savedPaint){
-        coloredCount++;
         const badge = document.createElement('span');
         badge.className = 'thumb-badge';
         badge.textContent = '✓';
@@ -840,6 +900,8 @@
       item.addEventListener('click', function(){ openPage(page.id); });
       bookGrid.appendChild(item);
     });
+    let coloredCount = 0;
+    book.forEach(function(page){ if (loadPagePaint(page.id)) coloredCount++; });
     progressText.textContent = coloredCount + ' / ' + PAGE_COUNT + ' coloreadas';
   }
 
@@ -848,6 +910,7 @@
     viewPage.style.display = 'none';
     btnNewBook.hidden = false;
     btnSave.hidden = true;
+    btnFavorite.hidden = true;
     topSub.textContent = PAGE_COUNT + ' páginas para colorear';
     renderIndex();
     playViewAnim(viewIndex);
@@ -898,6 +961,8 @@
     viewPage.style.display = 'flex';
     btnNewBook.hidden = true;
     btnSave.hidden = false;
+    btnFavorite.hidden = false;
+    updateFavoriteButton(id);
     updateMirrorLabel();
     topSub.textContent = 'Página ' + (id + 1) + ' de ' + PAGE_COUNT;
     pageProgressFill.style.width = (((id + 1) / PAGE_COUNT) * 100) + '%';
