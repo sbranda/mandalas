@@ -122,6 +122,13 @@
     background: linear-gradient(0deg, rgba(20,19,43,0.95) 0%, rgba(20,19,43,0.7) 70%, rgba(20,19,43,0) 100%);
   }
   .canvas-frame.is-fullscreen .fs-toolbar{ display:flex; }
+  .fs-number-legend{
+    display:none; position:absolute; left:0; right:0; top:0; z-index:20;
+    flex-wrap:wrap; justify-content:center; gap:6px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(20,19,43,0.95) 0%, rgba(20,19,43,0.7) 70%, rgba(20,19,43,0) 100%);
+  }
+  .canvas-frame.is-fullscreen .fs-number-legend.show{ display:flex; }
   .fs-palette{ flex:1; display:flex; gap:8px; overflow-x:auto; padding:4px 2px; scrollbar-width:none; }
   .fs-palette::-webkit-scrollbar{ display:none; }
   .fs-swatch{
@@ -254,6 +261,7 @@
     <div class="page-row" id="pageRow">
       <button id="btnPrev" class="btn-round" aria-label="Página anterior">‹</button>
       <div class="canvas-frame" id="canvasFrame">
+        <div class="fs-number-legend" id="fsNumberLegend" hidden></div>
         <div class="paper" id="paperWrap">
           <div class="zoom-content" id="zoomContent">
             <canvas id="paintCanvas"></canvas>
@@ -958,6 +966,7 @@
     btnExpand.textContent = paperFullscreen ? '✕' : '⤢';
     btnExpand.setAttribute('aria-label', paperFullscreen ? 'Cerrar pantalla completa' : 'Ver mándala en pantalla completa');
     resetZoom(false);
+    syncFsLegendVisibility();
     requestAnimationFrame(resizeCurrentPageCanvases);
   }
   btnExpand.addEventListener('click', toggleFullscreenView);
@@ -1158,8 +1167,8 @@
     if (numberMode) drawNumbersOverlay(lctx, cssSize, currentPageId);
   }
 
-  function buildNumberLegend(){
-    numberLegend.innerHTML = '';
+  function buildLegendBadgesInto(container){
+    container.innerHTML = '';
     NUM_LEGEND_COLORS.forEach(function(color, i){
       const badge = document.createElement('div');
       badge.className = 'legend-badge';
@@ -1168,15 +1177,24 @@
       sw.style.background = color;
       sw.textContent = String(i+1);
       badge.appendChild(sw);
-      numberLegend.appendChild(badge);
+      container.appendChild(badge);
     });
   }
-  buildNumberLegend();
+  const fsNumberLegend = document.getElementById('fsNumberLegend');
+  buildLegendBadgesInto(numberLegend);
+  buildLegendBadgesInto(fsNumberLegend);
+
+  function syncFsLegendVisibility(){
+    const show = numberMode && paperFullscreen;
+    fsNumberLegend.hidden = !show;
+    fsNumberLegend.classList.toggle('show', show);
+  }
 
   function updateNumberModeUI(){
     btnNumberMode.textContent = 'Pintar por número: ' + (numberMode ? 'activo' : 'apagado');
     btnNumberMode.classList.toggle('is-active', numberMode);
     numberLegend.hidden = !numberMode;
+    syncFsLegendVisibility();
   }
   btnNumberMode.addEventListener('click', function(){
     numberMode = !numberMode;
