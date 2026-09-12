@@ -267,6 +267,7 @@
     <div class="theme-toggles">
       <button id="btnFavFilter" class="btn-ghost theme-chip">☆ Ver solo favoritas</button>
       <button id="btnGallery" class="btn-ghost theme-chip">🖼 Galería de guardados</button>
+      <button id="btnExportPdf" class="btn-ghost theme-chip">📄 Exportar libro a PDF</button>
     </div>
     <div class="theme-toggles">
       <span class="theme-toggles-label">Temas extra al generar libro nuevo:</span>
@@ -1691,6 +1692,122 @@
     octx.drawImage(lineCanvas, 0,0,size,size);
     return out;
   }
+
+  /* ---------------- Exportar el libro coloreado a PDF (armado a mano, sin librerías) ---------------- */
+  function composePageCanvasFor(pageId){
+    const page = book[pageId];
+    const size = 900;
+    const out = document.createElement('canvas');
+    out.width = size; out.height = size;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#FBF7EE';
+    octx.fillRect(0,0,size,size);
+    const saved = loadPagePaint(pageId);
+    return new Promise(function(resolve){
+      function finish(){ drawPage(octx, size, page); resolve(out); }
+      if (saved){
+        const img = new Image();
+        img.onload = function(){ octx.drawImage(img,0,0,size,size); finish(); };
+        img.onerror = finish;
+        img.src = saved;
+      } else {
+        finish();
+      }
+    });
+  }
+
+  function buildPdfFromJpegPages(pages){
+    const chunks = [];
+    const offsets = [];
+    let offset = 0;
+    function push(part){
+      const bytes = (typeof part === 'string') ? new TextEncoder().encode(part) : part;
+      chunks.push(bytes);
+      offset += bytes.length;
+    }
+    function beginObj(num){ offsets[num] = offset; push(num + ' 0 obj\n'); }
+    function endObj(){ push('endobj\n'); }
+
+    push('%PDF-1.4\n');
+    const n = pages.length;
+    const pageObjNums = [];
+    for (let i=0; i<n; i++) pageObjNums.push(3 + i*3);
+
+    beginObj(1);
+    push('<< /Type /Catalog /Pages 2 0 R >>\n');
+    endObj();
+
+    beginObj(2);
+    push('<< /Type /Pages /Kids [' + pageObjNums.map(function(x){ return x + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>\n');
+    endObj();
+
+    for (let i=0; i<n; i++){
+      const p = pages[i];
+      const pageNum = 3 + i*3, contentNum = 4 + i*3, imageNum = 5 + i*3;
+      const w = p.width, h = p.height;
+
+      beginObj(pageNum);
+      push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + '] /Resources << /XObject << /Im ' + imageNum + ' 0 R >> >> /Contents ' + contentNum + ' 0 R >>\n');
+      endObj();
+
+      const contentStr = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im Do Q';
+      beginObj(contentNum);
+      push('<< /Length ' + contentStr.length + ' >>\nstream\n' + contentStr + '\nendstream\n');
+      endObj();
+
+      beginObj(imageNum);
+      push('<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.bytes.length + ' >>\nstream\n');
+      push(p.bytes);
+      push('\nendstream\n');
+      endObj();
+    }
+
+    const xrefOffset = offset;
+    const totalObjs = 2 + n*3 + 1;
+    push('xref\n0 ' + totalObjs + '\n');
+    push('0000000000 65535 f \n');
+    for (let i=1; i<totalObjs; i++){
+      push(String(offsets[i] || 0).padStart(10,'0') + ' 00000 n \n');
+    }
+    push('trailer\n<< /Size ' + totalObjs + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF');
+
+    return new Blob(chunks, { type: 'application/pdf' });
+  }
+
+  const btnExportPdf = document.getElementById('btnExportPdf');
+  btnExportPdf.addEventListener('click', async function(){
+    const coloredIds = [];
+    for (let i=0; i<PAGE_COUNT; i++){ if (loadPagePaint(i)) coloredIds.push(i); }
+    if (!coloredIds.length){
+      showToast('Todavía no coloreaste ninguna página');
+      return;
+    }
+    btnExportPdf.disabled = true;
+    const originalLabel = btnExportPdf.textContent;
+    try{
+      const pagesData = [];
+      for (let i=0; i<coloredIds.length; i++){
+        btnExportPdf.textContent = 'Generando... ' + (i+1) + '/' + coloredIds.length;
+        const canvas = await composePageCanvasFor(coloredIds[i]);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const resp = await fetch(dataUrl);
+        const buf = await resp.arrayBuffer();
+        pagesData.push({ width: canvas.width, height: canvas.height, bytes: new Uint8Array(buf) });
+      }
+      const blob = buildPdfFromJpegPages(pagesData);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'libro-de-mandalas.pdf';
+      link.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      showToast('PDF generado: ' + coloredIds.length + ' página' + (coloredIds.length === 1 ? '' : 's'));
+    }catch(err){
+      showToast('No se pudo generar el PDF');
+    }
+    btnExportPdf.disabled = false;
+    btnExportPdf.textContent = originalLabel;
+  });
 
   btnSave.addEventListener('click', function(){
     const out = composePageCanvas();
