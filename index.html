@@ -147,7 +147,7 @@
   .view-anim{ animation: viewIn 220ms ease; }
   @keyframes paperIn{ from{ opacity:0; transform:scale(0.97); } to{ opacity:1; transform:scale(1); } }
   .paper-anim{ animation: paperIn 180ms ease; }
-  .zoom-content{ position:absolute; inset:0; transform-origin:0 0; touch-action:none; }
+  .zoom-content{ position:absolute; inset:0; transform-origin:0 0; touch-action:none; will-change:transform; }
   .zoom-content canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   #lineCanvas{ pointer-events:none; }
   .btn-expand{
@@ -784,7 +784,7 @@
   const lineCanvas = document.getElementById('lineCanvas');
   const paintCanvas = document.getElementById('paintCanvas');
   const lctx = lineCanvas.getContext('2d');
-  const pctx = paintCanvas.getContext('2d');
+  const pctx = paintCanvas.getContext('2d', { desynchronized: true });
   const canvasFrame = document.getElementById('canvasFrame');
   const btnExpand = document.getElementById('btnExpand');
   const paletteWheel = document.getElementById('paletteWheel');
@@ -1078,7 +1078,7 @@
      el dedo se compone sobre el lienzo real con la opacidad elegida (efecto acuarela:
      se mezcla con lo que ya estaba pintado debajo, pero el trazo en sí queda parejo). */
   const scratchCanvas = document.createElement('canvas');
-  const sctx = scratchCanvas.getContext('2d');
+  const sctx = scratchCanvas.getContext('2d', { desynchronized: true });
   function beginScratchStroke(){
     sizeCanvas(scratchCanvas, currentCssSize());
   }
@@ -1405,6 +1405,16 @@
     beginScratchStroke();
     dotAt(lastPoint);
   });
+  let pendingMovePoint = null;
+  let moveRafScheduled = false;
+  function flushPendingMove(){
+    moveRafScheduled = false;
+    if (!drawing || !pendingMovePoint) return;
+    const p = pendingMovePoint;
+    pendingMovePoint = null;
+    strokeTo(lastPoint, p);
+    lastPoint = p;
+  }
   paintCanvas.addEventListener('pointermove', function(e){
     if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -1413,12 +1423,15 @@
       return;
     }
     if (!drawing) return;
-    const p = getPoint(e);
-    strokeTo(lastPoint, p);
-    lastPoint = p;
+    pendingMovePoint = getPoint(e);
+    if (!moveRafScheduled){
+      moveRafScheduled = true;
+      requestAnimationFrame(flushPendingMove);
+    }
   });
   function endStroke(){
     if (!drawing) return;
+    flushPendingMove();
     drawing = false; lastPoint = null;
     flushScratchStroke();
     persistCurrentPaintDebounced();
