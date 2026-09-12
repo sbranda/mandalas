@@ -82,6 +82,20 @@
   }
   .jump-form input::-webkit-outer-spin-button, .jump-form input::-webkit-inner-spin-button{ margin:0; }
   .book-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+
+  #viewGallery{ display:none; flex-direction:column; gap:14px; }
+  .gallery-header{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .gallery-title{ font-family:'Fraunces', serif; font-size:1.05rem; color:var(--text-light); }
+  .gallery-empty{ font-size:0.82rem; color:var(--text-muted); text-align:center; padding:30px 10px; }
+  .gallery-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
+  .gallery-item{
+    background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:16px;
+    padding:8px; display:flex; flex-direction:column; gap:6px;
+  }
+  .gallery-item canvas{ width:100%; aspect-ratio:1/1; border-radius:10px; background:var(--paper); }
+  .gallery-item span{ font-size:0.72rem; color:var(--text-muted); text-align:center; }
+  .gallery-actions{ display:flex; gap:6px; }
+  .gallery-actions button{ flex:1; font-size:0.7rem; padding:7px 6px; }
   .page-thumb{
     position:relative;
     background: var(--bg-panel); border-radius:14px; padding:6px;
@@ -252,6 +266,7 @@
     </div>
     <div class="theme-toggles">
       <button id="btnFavFilter" class="btn-ghost theme-chip">☆ Ver solo favoritas</button>
+      <button id="btnGallery" class="btn-ghost theme-chip">🖼 Galería de guardados</button>
     </div>
     <div class="theme-toggles">
       <span class="theme-toggles-label">Temas extra al generar libro nuevo:</span>
@@ -323,6 +338,15 @@
         <button id="btnIndex" class="btn-ghost btn-block">Índice</button>
       </div>
     </div>
+  </main>
+
+  <main id="viewGallery">
+    <div class="gallery-header">
+      <span class="gallery-title">Galería de guardados</span>
+      <button id="btnCloseGallery" class="btn-ghost">← Índice</button>
+    </div>
+    <p class="gallery-empty" id="galleryEmpty" hidden>Todavía no guardaste ninguna página como imagen. Tocá "Guardar" mientras coloreás para que aparezca acá.</p>
+    <div class="gallery-grid" id="galleryGrid"></div>
   </main>
 </div>
 
@@ -908,6 +932,7 @@
   function showIndex(){
     viewIndex.style.display = 'flex';
     viewPage.style.display = 'none';
+    viewGallery.style.display = 'none';
     btnNewBook.hidden = false;
     btnSave.hidden = true;
     btnFavorite.hidden = true;
@@ -958,6 +983,7 @@
     const cameFromIndex = viewIndex.style.display !== 'none';
     currentPageId = id;
     viewIndex.style.display = 'none';
+    viewGallery.style.display = 'none';
     viewPage.style.display = 'flex';
     btnNewBook.hidden = true;
     btnSave.hidden = false;
@@ -1573,6 +1599,87 @@
     showToast('Página limpia');
   });
 
+  /* ---------------- Galería de guardados ---------------- */
+  const GALLERY_KEY = 'mandalas:gallery:v1';
+  let savedPageIds = [];
+  try{
+    const rawGallery = localStorage.getItem(GALLERY_KEY);
+    if (rawGallery) savedPageIds = JSON.parse(rawGallery);
+  }catch(e){}
+  function saveGalleryIds(){
+    try{ localStorage.setItem(GALLERY_KEY, JSON.stringify(savedPageIds)); }catch(e){}
+  }
+  function addToGallery(id){
+    const idx = savedPageIds.indexOf(id);
+    if (idx !== -1) savedPageIds.splice(idx, 1);
+    savedPageIds.push(id);
+    saveGalleryIds();
+  }
+  function removeFromGallery(id){
+    const idx = savedPageIds.indexOf(id);
+    if (idx !== -1){ savedPageIds.splice(idx, 1); saveGalleryIds(); }
+  }
+
+  const viewGallery = document.getElementById('viewGallery');
+  const galleryGrid = document.getElementById('galleryGrid');
+  const galleryEmpty = document.getElementById('galleryEmpty');
+  const btnGallery = document.getElementById('btnGallery');
+  const btnCloseGallery = document.getElementById('btnCloseGallery');
+
+  function renderGallery(){
+    galleryGrid.innerHTML = '';
+    const validIds = savedPageIds.filter(function(id){ return id >= 0 && id < PAGE_COUNT; });
+    galleryEmpty.hidden = validIds.length > 0;
+    validIds.slice().reverse().forEach(function(id){
+      const page = book[id];
+      const item = document.createElement('div');
+      item.className = 'gallery-item';
+      const canvas = document.createElement('canvas');
+      canvas.width = 220; canvas.height = 220;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,220,220);
+      const saved = loadPagePaint(id);
+      if (saved){
+        const img = new Image();
+        img.onload = function(){ ctx.drawImage(img,0,0,220,220); drawPage(ctx,220,page); };
+        img.src = saved;
+      } else {
+        drawPage(ctx, 220, page);
+      }
+      const label = document.createElement('span');
+      label.textContent = 'Página ' + (id + 1);
+      const actions = document.createElement('div');
+      actions.className = 'gallery-actions';
+      const btnOpen = document.createElement('button');
+      btnOpen.className = 'btn-ghost';
+      btnOpen.textContent = 'Abrir';
+      btnOpen.addEventListener('click', function(){ openPage(id); });
+      const btnRemove = document.createElement('button');
+      btnRemove.className = 'btn-ghost';
+      btnRemove.textContent = 'Quitar';
+      btnRemove.addEventListener('click', function(){
+        removeFromGallery(id);
+        renderGallery();
+      });
+      actions.appendChild(btnOpen);
+      actions.appendChild(btnRemove);
+      item.appendChild(canvas);
+      item.appendChild(label);
+      item.appendChild(actions);
+      galleryGrid.appendChild(item);
+    });
+  }
+
+  function showGallery(){
+    viewIndex.style.display = 'none';
+    viewPage.style.display = 'none';
+    viewGallery.style.display = 'flex';
+    renderGallery();
+    playViewAnim(viewGallery);
+  }
+  btnGallery.addEventListener('click', showGallery);
+  btnCloseGallery.addEventListener('click', showIndex);
+
   function composePageCanvas(){
     const size = Math.max(paintCanvas.width, 1200);
     const out = document.createElement('canvas');
@@ -1591,6 +1698,7 @@
     link.download = 'mandala-pagina-' + (currentPageId + 1) + '.png';
     link.href = out.toDataURL('image/png');
     link.click();
+    addToGallery(currentPageId);
     showToast('Imagen guardada');
   });
 
