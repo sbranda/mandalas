@@ -69,6 +69,10 @@
 
   #viewIndex{ display:flex; flex-direction:column; gap:14px; }
   .index-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .theme-toggles{ display:flex; flex-direction:column; gap:6px; }
+  .theme-toggles-label{ font-size:0.72rem; color:var(--text-muted); }
+  .theme-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+  .theme-chip{ font-size:0.75rem; padding:8px 12px; }
   .progress-text{ font-size:0.75rem; color:var(--text-muted); }
   .jump-form{ display:flex; gap:6px; align-items:center; }
   .jump-form input{
@@ -222,6 +226,14 @@
       <div class="jump-form">
         <input type="number" id="jumpInput" min="1" max="200" placeholder="N°" inputmode="numeric">
         <button id="btnJump" class="btn-ghost">Ir</button>
+      </div>
+    </div>
+    <div class="theme-toggles">
+      <span class="theme-toggles-label">Temas extra al generar libro nuevo:</span>
+      <div class="theme-chips">
+        <button id="toggleFlower" class="btn-ghost theme-chip">Flores</button>
+        <button id="toggleAnimal" class="btn-ghost theme-chip">Animales</button>
+        <button id="toggleLetter" class="btn-ghost theme-chip">Letras iniciales</button>
       </div>
     </div>
     <div class="book-grid" id="bookGrid"></div>
@@ -579,7 +591,23 @@
   const LAYER_OPTIONS = [3,4,5,6];
   const PETAL_OPTIONS = [5,6,7,8];
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const THEME_WEIGHTS = ['mandala','mandala','mandala','flower','flower','animal','letter'];
+
+  const THEME_SETTINGS_KEY = 'mandalas:themes:v1';
+  let themeSettings = { flower: false, animal: false, letter: false };
+  try{
+    const rawThemes = localStorage.getItem(THEME_SETTINGS_KEY);
+    if (rawThemes) Object.assign(themeSettings, JSON.parse(rawThemes));
+  }catch(e){}
+  function saveThemeSettings(){
+    try{ localStorage.setItem(THEME_SETTINGS_KEY, JSON.stringify(themeSettings)); }catch(e){}
+  }
+  function buildThemeWeights(){
+    const weights = ['mandala','mandala','mandala'];
+    if (themeSettings.flower) weights.push('flower','flower');
+    if (themeSettings.animal) weights.push('animal');
+    if (themeSettings.letter) weights.push('letter');
+    return weights;
+  }
   function hslToHex(h, s, l){
     s /= 100; l /= 100;
     const k = function(n){ return (n + h/30) % 12; };
@@ -604,7 +632,8 @@
   const PALETTE = generatePalette();
 
   function makeRandomPage(id){
-    const theme = THEME_WEIGHTS[Math.floor(Math.random()*THEME_WEIGHTS.length)];
+    const weights = buildThemeWeights();
+    const theme = weights[Math.floor(Math.random()*weights.length)];
     const page = { id: id, theme: theme, seed: Math.floor(Math.random()*1000000) };
     if (theme === 'mandala'){
       page.segments = SEG_OPTIONS[Math.floor(Math.random()*SEG_OPTIONS.length)];
@@ -682,6 +711,27 @@
   const pageProgressFill = document.getElementById('pageProgressFill');
   const topSub = document.getElementById('topSub');
   const btnNewBook = document.getElementById('btnNewBook');
+  const toggleFlower = document.getElementById('toggleFlower');
+  const toggleAnimal = document.getElementById('toggleAnimal');
+  const toggleLetter = document.getElementById('toggleLetter');
+  function syncThemeToggles(){
+    toggleFlower.classList.toggle('is-active', themeSettings.flower);
+    toggleAnimal.classList.toggle('is-active', themeSettings.animal);
+    toggleLetter.classList.toggle('is-active', themeSettings.letter);
+  }
+  toggleFlower.addEventListener('click', function(){
+    themeSettings.flower = !themeSettings.flower;
+    saveThemeSettings(); syncThemeToggles();
+  });
+  toggleAnimal.addEventListener('click', function(){
+    themeSettings.animal = !themeSettings.animal;
+    saveThemeSettings(); syncThemeToggles();
+  });
+  toggleLetter.addEventListener('click', function(){
+    themeSettings.letter = !themeSettings.letter;
+    saveThemeSettings(); syncThemeToggles();
+  });
+  syncThemeToggles();
   const btnSave = document.getElementById('btnSave');
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
