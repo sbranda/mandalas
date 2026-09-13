@@ -54,8 +54,9 @@
   }
   .btn-primary:active{ transform: translateY(1px); box-shadow:none; }
   .btn-ghost{
-    background: var(--bg-panel-alt); color:var(--text-light); padding:9px 14px;
-    border-radius:999px; font-size:0.8rem; border:1px solid var(--line-hair);
+    background: var(--bg-panel-alt); color:var(--text-light); padding:11px 14px;
+    border-radius:999px; font-size:0.83rem; border:1px solid var(--line-hair);
+    min-height:44px;
   }
   .btn-ghost.is-active{ background: var(--rose); color:#2a0d12; }
   .btn-block{ width:100%; }
@@ -113,7 +114,8 @@
   }
   .page-thumb:active{ transform: scale(0.95); }
   .page-thumb canvas{ width:100%; aspect-ratio:1/1; border-radius:9px; background:var(--paper); }
-  .page-thumb span{ font-size:0.68rem; color:var(--text-muted); }
+  .thumb-placeholder{ width:100%; aspect-ratio:1/1; border-radius:9px; background:var(--paper); }
+  .page-thumb span{ font-size:0.74rem; color:var(--text-muted); }
   .thumb-badge{
     position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%;
     background: var(--gold); color:#20180a; font-size:0.62rem; font-weight:700;
@@ -191,6 +193,20 @@
     background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
     padding:14px; display:flex; flex-direction:column; gap:14px;
   }
+  .panel-section{ border-bottom:1px solid var(--line-hair); padding-bottom:14px; }
+  .panel-section:last-of-type{ border-bottom:none; padding-bottom:0; }
+  .panel-section summary{
+    cursor:pointer; list-style:none; font-size:0.88rem; font-weight:600;
+    color:var(--text-light); padding:4px 2px; display:flex; align-items:center;
+    justify-content:space-between;
+  }
+  .panel-section summary::-webkit-details-marker{ display:none; }
+  .panel-section summary::after{
+    content:'▾'; color:var(--text-muted); font-size:0.75rem;
+    transition: transform .15s ease;
+  }
+  .panel-section[open] summary::after{ transform: rotate(180deg); }
+  .panel-section-body{ display:flex; flex-direction:column; gap:14px; padding-top:12px; }
   .field{ display:flex; flex-direction:column; gap:6px; }
   .field-label{ display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-muted); }
   .field-label b{ color:var(--text-light); font-weight:600; }
@@ -213,14 +229,14 @@
     max-height:168px; overflow-y:auto; padding:4px 2px;
   }
   .swatch{
-    width:28px; height:28px; border-radius:50%; flex-shrink:0;
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
     border:2px solid rgba(237,233,245,0.35);
     transition: transform .12s ease;
   }
   .swatch:active{ transform: scale(0.85); }
   .swatch.selected{ border-color: var(--text-light); box-shadow: 0 0 0 2px var(--bg-night), 0 0 0 3px var(--gold); }
   .swatch-custom{
-    width:28px; height:28px; border-radius:50%; flex-shrink:0; position:relative;
+    width:34px; height:34px; border-radius:50%; flex-shrink:0; position:relative;
     background: conic-gradient(from 0deg, #C9A227,#C15C6B,#7B4B94,#4C7A8C,#2E7D5B,#E08E45,#C9A227);
     border:2px solid var(--bg-night);
   }
@@ -238,6 +254,21 @@
 
   .install-note{ font-size:0.72rem; color:var(--text-muted); background:var(--bg-night); border-radius:12px; padding:10px 12px; display:none; }
   .install-note.show{ display:block; }
+
+  .onboard-overlay{
+    position:fixed; inset:0; z-index:200; background:rgba(20,19,43,0.88);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .onboard-card{
+    background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
+    padding:24px 22px; max-width:380px; width:100%;
+  }
+  .onboard-card h2{
+    font-family:'Fraunces', serif; font-size:1.3rem; margin:0 0 14px; color:var(--text-light); text-align:center;
+  }
+  .onboard-list{ margin:0 0 20px; padding-left:20px; display:flex; flex-direction:column; gap:10px; }
+  .onboard-list li{ font-size:0.86rem; color:var(--text-light); line-height:1.4; }
+  .onboard-list b{ color:var(--gold); }
 
   .toast{
     position:fixed; left:50%; bottom:18px; transform:translate(-50%, 20px);
@@ -320,38 +351,58 @@
     </div>
 
     <div class="control-panel">
-      <div class="palette-preset-row" id="palettePresetRow">
-        <button class="btn-ghost preset-chip is-active" data-preset="full">Todos</button>
-        <button class="btn-ghost preset-chip" data-preset="autumn">Otoño</button>
-        <button class="btn-ghost preset-chip" data-preset="pastel">Pastel</button>
-        <button class="btn-ghost preset-chip" data-preset="neon">Neón</button>
-        <button class="btn-ghost preset-chip" data-preset="earth">Tierra</button>
-      </div>
-      <div class="palette-grid" id="paletteWheel"></div>
-      <div class="field">
-        <div class="field-label"><span>Grosor de pincel</span><b id="valBrush">10</b></div>
-        <input type="range" id="rangeBrush" min="2" max="40" value="10">
-      </div>
+      <details class="panel-section" open>
+        <summary>🎨 Colores</summary>
+        <div class="panel-section-body">
+          <div class="palette-preset-row" id="palettePresetRow">
+            <button class="btn-ghost preset-chip is-active" data-preset="full">Todos</button>
+            <button class="btn-ghost preset-chip" data-preset="autumn">Otoño</button>
+            <button class="btn-ghost preset-chip" data-preset="pastel">Pastel</button>
+            <button class="btn-ghost preset-chip" data-preset="neon">Neón</button>
+            <button class="btn-ghost preset-chip" data-preset="earth">Tierra</button>
+          </div>
+          <div class="palette-grid" id="paletteWheel"></div>
+        </div>
+      </details>
+
+      <details class="panel-section" open>
+        <summary>🖌️ Pincel y herramientas</summary>
+        <div class="panel-section-body">
+          <div class="field">
+            <div class="field-label"><span>Grosor de pincel</span><b id="valBrush">10</b></div>
+            <input type="range" id="rangeBrush" min="2" max="40" value="10">
+          </div>
+          <div class="row-buttons">
+            <button id="btnToolBrush" class="btn-ghost is-active">Pincel</button>
+            <button id="btnToolBucket" class="btn-ghost">Balde</button>
+            <button id="btnToolEraser" class="btn-ghost">Goma</button>
+          </div>
+          <div class="row-buttons">
+            <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel-section">
+        <summary>⚙️ Más opciones</summary>
+        <div class="panel-section-body">
+          <div class="row-buttons">
+            <button id="btnMirror" class="btn-ghost btn-block">Pintado espejado: apagado</button>
+          </div>
+          <div class="row-buttons">
+            <button id="btnNumberMode" class="btn-ghost btn-block">Pintar por número: apagado</button>
+          </div>
+          <div class="number-legend" id="numberLegend" hidden></div>
+          <div class="row-buttons">
+            <button id="btnWallpaper" class="btn-ghost btn-block">🖼️ Usar como fondo de pantalla</button>
+          </div>
+          <div class="row-buttons">
+            <button id="btnClear" class="btn-ghost btn-block">Borrar página</button>
+          </div>
+        </div>
+      </details>
+
       <div class="row-buttons">
-        <button id="btnToolBrush" class="btn-ghost is-active">Pincel</button>
-        <button id="btnToolBucket" class="btn-ghost">Balde</button>
-        <button id="btnToolEraser" class="btn-ghost">Goma</button>
-      </div>
-      <div class="row-buttons">
-        <button id="btnMirror" class="btn-ghost btn-block">Pintado espejado: apagado</button>
-      </div>
-      <div class="row-buttons">
-        <button id="btnNumberMode" class="btn-ghost btn-block">Pintar por número: apagado</button>
-      </div>
-      <div class="number-legend" id="numberLegend" hidden></div>
-      <div class="row-buttons">
-        <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
-      </div>
-      <div class="row-buttons">
-        <button id="btnWallpaper" class="btn-ghost btn-block">🖼️ Usar como fondo de pantalla</button>
-      </div>
-      <div class="row-buttons">
-        <button id="btnClear" class="btn-ghost btn-block">Borrar página</button>
         <button id="btnIndex" class="btn-ghost btn-block">Índice</button>
       </div>
     </div>
@@ -365,6 +416,20 @@
     <p class="gallery-empty" id="galleryEmpty" hidden>Todavía no guardaste ninguna página como imagen. Tocá "Guardar" mientras coloreás para que aparezca acá.</p>
     <div class="gallery-grid" id="galleryGrid"></div>
   </main>
+</div>
+
+<div class="onboard-overlay" id="onboardOverlay" hidden>
+  <div class="onboard-card">
+    <h2>¡Bienvenido/a! 🌸</h2>
+    <ul class="onboard-list">
+      <li>Tocá una página para abrirla y empezar a colorear.</li>
+      <li>Elegí <b>Pincel</b>, <b>Balde</b> (rellena una celda de un toque) o <b>Goma</b>.</li>
+      <li>Pellizcá con dos dedos para hacer zoom en los detalles finos.</li>
+      <li>El botón ⤢ agranda la mándala a pantalla completa.</li>
+      <li><b>Guardar</b> descarga tu dibujo; <b>Compartir</b> lo manda directo por WhatsApp y demás.</li>
+    </ul>
+    <button id="btnOnboardClose" class="btn-primary btn-block">¡Entendido!</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -905,46 +970,67 @@
     showToast(isFavorite(currentPageId) ? 'Agregada a favoritas' : 'Quitada de favoritas');
   });
 
+  function renderThumbContent(item, page){
+    const placeholder = item.querySelector('.thumb-placeholder');
+    const canvas = document.createElement('canvas');
+    canvas.width = 140; canvas.height = 140;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,140,140);
+    const savedPaint = loadPagePaint(page.id);
+    if (savedPaint){
+      const badge = document.createElement('span');
+      badge.className = 'thumb-badge';
+      badge.textContent = '✓';
+      item.appendChild(badge);
+      const lineTemp = document.createElement('canvas');
+      lineTemp.width = 140; lineTemp.height = 140;
+      drawPage(lineTemp.getContext('2d'), 140, page);
+      const img = new Image();
+      img.onload = function(){
+        ctx.drawImage(img,0,0,140,140);
+        ctx.drawImage(lineTemp,0,0,140,140);
+      };
+      img.src = savedPaint;
+    } else {
+      drawPage(ctx, 140, page);
+    }
+    if (placeholder) placeholder.replaceWith(canvas);
+    else item.insertBefore(canvas, item.firstChild);
+  }
+
+  let thumbObserver = null;
   function renderIndex(){
     bookGrid.innerHTML = '';
+    if (thumbObserver) thumbObserver.disconnect();
+    thumbObserver = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (!entry.isIntersecting) return;
+        const pageId = parseInt(entry.target.dataset.pageId, 10);
+        renderThumbContent(entry.target, book[pageId]);
+        thumbObserver.unobserve(entry.target);
+      });
+    }, { rootMargin: '400px 0px' });
+
     const pagesToShow = showFavoritesOnly ? book.filter(function(p){ return isFavorite(p.id); }) : book;
     pagesToShow.forEach(function(page){
       const item = document.createElement('button');
       item.className = 'page-thumb';
+      item.dataset.pageId = String(page.id);
       if (isFavorite(page.id)){
         const favBadge = document.createElement('span');
         favBadge.className = 'thumb-fav-badge';
         favBadge.textContent = '★';
         item.appendChild(favBadge);
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = 140; canvas.height = 140;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,140,140);
-      const savedPaint = loadPagePaint(page.id);
-      if (savedPaint){
-        const badge = document.createElement('span');
-        badge.className = 'thumb-badge';
-        badge.textContent = '✓';
-        item.appendChild(badge);
-        const lineTemp = document.createElement('canvas');
-        lineTemp.width = 140; lineTemp.height = 140;
-        drawPage(lineTemp.getContext('2d'), 140, page);
-        const img = new Image();
-        img.onload = function(){
-          ctx.drawImage(img,0,0,140,140);
-          ctx.drawImage(lineTemp,0,0,140,140);
-        };
-        img.src = savedPaint;
-      } else {
-        drawPage(ctx, 140, page);
-      }
+      const placeholder = document.createElement('div');
+      placeholder.className = 'thumb-placeholder';
+      item.appendChild(placeholder);
       const label = document.createElement('span');
       label.textContent = 'Página ' + (page.id + 1);
-      item.appendChild(canvas);
       item.appendChild(label);
       item.addEventListener('click', function(){ openPage(page.id); });
       bookGrid.appendChild(item);
+      thumbObserver.observe(item);
     });
     let coloredCount = 0;
     book.forEach(function(page){ if (loadPagePaint(page.id)) coloredCount++; });
@@ -2254,6 +2340,18 @@
 
   applyPalettePreset(currentPaletteName);
   showIndex();
+
+  /* ---------------- Tutorial de bienvenida (una sola vez) ---------------- */
+  const ONBOARD_KEY = 'mandalas:onboarded:v1';
+  try{
+    if (!localStorage.getItem(ONBOARD_KEY)){
+      document.getElementById('onboardOverlay').hidden = false;
+    }
+  }catch(e){}
+  document.getElementById('btnOnboardClose').addEventListener('click', function(){
+    document.getElementById('onboardOverlay').hidden = true;
+    try{ localStorage.setItem(ONBOARD_KEY, '1'); }catch(e){}
+  });
 })();
 </script>
 </body>
