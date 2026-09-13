@@ -1388,6 +1388,11 @@
       if (filled) anyFilled = true;
     });
     if (anyFilled) pctx.putImageData(paintImgData, 0, 0);
+    return anyFilled;
+  }
+
+  function hapticTap(){
+    if (navigator.vibrate) navigator.vibrate(12);
   }
 
   /* ---------------- Zoom con pellizco (pinch-to-zoom) ---------------- */
@@ -1472,7 +1477,8 @@
     const p = getPoint(e);
     if (tool === 'bucket'){
       pushUndo();
-      doFloodFill(p);
+      const filled = doFloodFill(p);
+      if (filled) hapticTap();
       persistCurrentPaintDebounced();
       return;
     }
