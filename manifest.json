@@ -1,7 +1,7 @@
 {
-  "name": "Libro de Mándalas para Colorear",
-  "short_name": "Mándalas",
-  "description": "Un libro de mándalas para colorear: elegí una página y pintala con tu propia paleta.",
+  "name": "Mandalízate",
+  "short_name": "Mandalízate",
+  "description": "Mandalízate: elegí una página (mándalas, flores, animales o letras) y pintala con tu propia paleta.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
