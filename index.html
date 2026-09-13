@@ -94,8 +94,8 @@
   }
   .gallery-item canvas{ width:100%; aspect-ratio:1/1; border-radius:10px; background:var(--paper); }
   .gallery-item span{ font-size:0.72rem; color:var(--text-muted); text-align:center; }
-  .gallery-actions{ display:flex; gap:6px; }
-  .gallery-actions button{ flex:1; font-size:0.7rem; padding:7px 6px; }
+  .gallery-actions{ display:flex; gap:5px; flex-wrap:wrap; }
+  .gallery-actions button{ flex:1 1 auto; min-width:60px; font-size:0.68rem; padding:7px 5px; }
   .page-thumb{
     position:relative;
     background: var(--bg-panel); border-radius:14px; padding:6px;
@@ -252,6 +252,7 @@
       <button id="btnFavorite" class="btn-round" aria-label="Marcar como favorita" hidden>☆</button>
       <button id="btnInstall" class="btn-ghost" hidden>Instalar</button>
       <button id="btnNewBook" class="btn-ghost">Libro nuevo</button>
+      <button id="btnShare" class="btn-ghost" hidden>Compartir</button>
       <button id="btnSave" class="btn-primary" hidden>Guardar</button>
     </div>
   </header>
@@ -784,6 +785,8 @@
   const topSub = document.getElementById('topSub');
   const btnNewBook = document.getElementById('btnNewBook');
   const btnFavorite = document.getElementById('btnFavorite');
+  const btnShare = document.getElementById('btnShare');
+  const canNativeShare = !!(navigator.share);
   const toggleFlower = document.getElementById('toggleFlower');
   const toggleAnimal = document.getElementById('toggleAnimal');
   const toggleLetter = document.getElementById('toggleLetter');
@@ -939,6 +942,7 @@
     viewGallery.style.display = 'none';
     btnNewBook.hidden = false;
     btnSave.hidden = true;
+    btnShare.hidden = true;
     btnFavorite.hidden = true;
     topSub.textContent = PAGE_COUNT + ' páginas para colorear';
     renderIndex();
@@ -991,6 +995,7 @@
     viewPage.style.display = 'flex';
     btnNewBook.hidden = true;
     btnSave.hidden = false;
+    btnShare.hidden = !canNativeShare;
     btnFavorite.hidden = false;
     updateFavoriteButton(id);
     updateMirrorLabel();
@@ -1669,6 +1674,21 @@
         renderGallery();
       });
       actions.appendChild(btnOpen);
+      if (canNativeShare){
+        const btnShareItem = document.createElement('button');
+        btnShareItem.className = 'btn-ghost';
+        btnShareItem.textContent = 'Compartir';
+        btnShareItem.addEventListener('click', async function(){
+          const shareCanvas = await composePageCanvasFor(id);
+          const filename = 'mandala-pagina-' + (id + 1) + '.png';
+          const shared = await shareCanvasAsPng(shareCanvas, filename);
+          if (!shared){
+            downloadCanvasPng(shareCanvas, filename);
+            showToast('Tu navegador no admite compartir directo — se descargó la imagen');
+          }
+        });
+        actions.appendChild(btnShareItem);
+      }
       actions.appendChild(btnRemove);
       item.appendChild(canvas);
       item.appendChild(label);
@@ -1831,6 +1851,42 @@
     link.click();
     addToGallery(currentPageId);
     showToast('Imagen guardada');
+  });
+
+  function canvasToBlob(canvas){
+    return new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+  }
+
+  async function shareCanvasAsPng(canvas, filename){
+    try{
+      const blob = await canvasToBlob(canvas);
+      if (!blob) return false;
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) return false;
+      await navigator.share({ files: [file], title: 'Mándala' });
+      return true;
+    }catch(err){
+      if (err && err.name === 'AbortError') return true;
+      return false;
+    }
+  }
+
+  function downloadCanvasPng(canvas, filename){
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  btnShare.addEventListener('click', async function(){
+    const out = composePageCanvas();
+    const filename = 'mandala-pagina-' + (currentPageId + 1) + '.png';
+    const shared = await shareCanvasAsPng(out, filename);
+    if (!shared){
+      downloadCanvasPng(out, filename);
+      showToast('Tu navegador no admite compartir directo — se descargó la imagen');
+    }
+    addToGallery(currentPageId);
   });
 
   let toastTimer = null;
