@@ -909,10 +909,13 @@
         badge.className = 'thumb-badge';
         badge.textContent = '✓';
         item.appendChild(badge);
+        const lineTemp = document.createElement('canvas');
+        lineTemp.width = 140; lineTemp.height = 140;
+        drawPage(lineTemp.getContext('2d'), 140, page);
         const img = new Image();
         img.onload = function(){
           ctx.drawImage(img,0,0,140,140);
-          drawPage(ctx, 140, page);
+          ctx.drawImage(lineTemp,0,0,140,140);
         };
         img.src = savedPaint;
       } else {
@@ -1641,8 +1644,11 @@
       ctx.fillStyle = '#FBF7EE'; ctx.fillRect(0,0,220,220);
       const saved = loadPagePaint(id);
       if (saved){
+        const lineTemp = document.createElement('canvas');
+        lineTemp.width = 220; lineTemp.height = 220;
+        drawPage(lineTemp.getContext('2d'), 220, page);
         const img = new Image();
-        img.onload = function(){ ctx.drawImage(img,0,0,220,220); drawPage(ctx,220,page); };
+        img.onload = function(){ ctx.drawImage(img,0,0,220,220); ctx.drawImage(lineTemp,0,0,220,220); };
         img.src = saved;
       } else {
         drawPage(ctx, 220, page);
@@ -1697,6 +1703,11 @@
   function composePageCanvasFor(pageId){
     const page = book[pageId];
     const size = 900;
+
+    const lineTemp = document.createElement('canvas');
+    lineTemp.width = size; lineTemp.height = size;
+    drawPage(lineTemp.getContext('2d'), size, page);
+
     const out = document.createElement('canvas');
     out.width = size; out.height = size;
     const octx = out.getContext('2d');
@@ -1704,7 +1715,10 @@
     octx.fillRect(0,0,size,size);
     const saved = loadPagePaint(pageId);
     return new Promise(function(resolve){
-      function finish(){ drawPage(octx, size, page); resolve(out); }
+      function finish(){
+        octx.drawImage(lineTemp, 0, 0, size, size);
+        resolve(out);
+      }
       if (saved){
         const img = new Image();
         img.onload = function(){ octx.drawImage(img,0,0,size,size); finish(); };
