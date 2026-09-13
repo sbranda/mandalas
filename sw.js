@@ -1,10 +1,11 @@
 // Recordá bumpear esta versión en cada deploy
-const CACHE_NAME = 'mandalas-v42';
+const CACHE_NAME = 'mandalas-v43';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './splash.jpg'
 ];
 
 self.addEventListener('install', function(event){
