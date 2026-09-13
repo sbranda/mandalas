@@ -260,6 +260,25 @@
     display:flex; align-items:center; justify-content:center; padding:20px;
   }
   .onboard-overlay[hidden]{ display:none; }
+
+  .print-choice-overlay{
+    position:fixed; inset:0; z-index:200; background:rgba(20,19,43,0.88);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .print-choice-overlay[hidden]{ display:none; }
+  .print-choice-card{
+    background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
+    padding:22px; max-width:340px; width:100%; display:flex; flex-direction:column; gap:10px;
+  }
+  .print-choice-card h3{
+    font-family:'Fraunces', serif; font-size:1.1rem; margin:0 0 6px; color:var(--text-light); text-align:center;
+  }
+  #printArea{ display:none; }
+  @media print{
+    body > *:not(#printArea){ display:none !important; }
+    #printArea{ display:flex !important; align-items:center; justify-content:center; width:100%; }
+    #printArea img{ max-width:100%; max-height:100vh; }
+  }
   .onboard-card{
     background: var(--bg-panel); border:1px solid var(--line-hair); border-radius:24px;
     padding:24px 22px; max-width:380px; width:100%;
@@ -398,6 +417,9 @@
             <button id="btnWallpaper" class="btn-ghost btn-block">🖼️ Usar como fondo de pantalla</button>
           </div>
           <div class="row-buttons">
+            <button id="btnPrint" class="btn-ghost btn-block">🖨️ Imprimir página</button>
+          </div>
+          <div class="row-buttons">
             <button id="btnClear" class="btn-ghost btn-block">Borrar página</button>
           </div>
         </div>
@@ -418,6 +440,16 @@
     <div class="gallery-grid" id="galleryGrid"></div>
   </main>
 </div>
+
+<div class="print-choice-overlay" id="printChoiceOverlay" hidden>
+  <div class="print-choice-card">
+    <h3>¿Cómo la imprimís?</h3>
+    <button id="btnPrintBlank" class="btn-primary btn-block">En blanco, para colorear en papel</button>
+    <button id="btnPrintColored" class="btn-ghost btn-block">Con mis colores, tal cual está</button>
+    <button id="btnPrintCancel" class="btn-ghost btn-block">Cancelar</button>
+  </div>
+</div>
+<div id="printArea"></div>
 
 <div class="onboard-overlay" id="onboardOverlay" hidden>
   <div class="onboard-card">
@@ -2003,6 +2035,45 @@
     }
     btnWallpaper.disabled = false;
     btnWallpaper.textContent = original;
+  });
+
+  /* ---------------- Imprimir página ---------------- */
+  const printArea = document.getElementById('printArea');
+  function printImage(dataUrl){
+    printArea.innerHTML = '';
+    const img = document.createElement('img');
+    function cleanup(){
+      printArea.innerHTML = '';
+      window.removeEventListener('afterprint', cleanup);
+    }
+    window.addEventListener('afterprint', cleanup);
+    img.onload = function(){ window.print(); };
+    img.src = dataUrl;
+    printArea.appendChild(img);
+  }
+  const printChoiceOverlay = document.getElementById('printChoiceOverlay');
+  document.getElementById('btnPrint').addEventListener('click', function(){
+    if (currentPageId === null) return;
+    printChoiceOverlay.hidden = false;
+  });
+  document.getElementById('btnPrintCancel').addEventListener('click', function(){
+    printChoiceOverlay.hidden = true;
+  });
+  document.getElementById('btnPrintBlank').addEventListener('click', function(){
+    printChoiceOverlay.hidden = true;
+    const size = 1400;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0,0,size,size);
+    drawPage(ctx, size, book[currentPageId]);
+    printImage(canvas.toDataURL('image/png'));
+  });
+  document.getElementById('btnPrintColored').addEventListener('click', function(){
+    printChoiceOverlay.hidden = true;
+    const out = composePageCanvas();
+    printImage(out.toDataURL('image/png'));
   });
 
   function buildPdfFromJpegPages(pages){
