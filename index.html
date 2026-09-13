@@ -336,6 +336,9 @@
         <button id="btnUndo" class="btn-ghost btn-block">Deshacer</button>
       </div>
       <div class="row-buttons">
+        <button id="btnWallpaper" class="btn-ghost btn-block">🖼️ Usar como fondo de pantalla</button>
+      </div>
+      <div class="row-buttons">
         <button id="btnClear" class="btn-ghost btn-block">Borrar página</button>
         <button id="btnIndex" class="btn-ghost btn-block">Índice</button>
       </div>
@@ -1749,6 +1752,99 @@
       }
     });
   }
+
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function composeWallpaper(pageId){
+    const page = book[pageId];
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    let sw = window.screen.width || 390, sh = window.screen.height || 844;
+    if (sw > sh){ const t = sw; sw = sh; sh = t; }
+    const w = Math.round(sw * dpr), h = Math.round(sh * dpr);
+
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const octx = out.getContext('2d');
+
+    const grad = octx.createRadialGradient(w*0.5, h*0.12, 0, w*0.5, h*0.12, Math.max(w,h)*0.95);
+    grad.addColorStop(0, '#201f45');
+    grad.addColorStop(1, '#14132B');
+    octx.fillStyle = grad;
+    octx.fillRect(0,0,w,h);
+
+    const size = Math.round(w * 0.9);
+    const x = Math.round((w - size) / 2);
+    const y = Math.round((h - size) / 2);
+    const radius = size * 0.045;
+
+    octx.save();
+    octx.shadowColor = 'rgba(0,0,0,0.5)';
+    octx.shadowBlur = size * 0.06;
+    octx.shadowOffsetY = size * 0.02;
+    roundRectPath(octx, x, y, size, size, radius);
+    octx.fillStyle = '#FBF7EE';
+    octx.fill();
+    octx.restore();
+
+    const lineTemp = document.createElement('canvas');
+    lineTemp.width = size; lineTemp.height = size;
+    drawPage(lineTemp.getContext('2d'), size, page);
+
+    const saved = loadPagePaint(pageId);
+    return new Promise(function(resolve){
+      function finish(){
+        octx.save();
+        roundRectPath(octx, x, y, size, size, radius);
+        octx.clip();
+        octx.drawImage(lineTemp, x, y, size, size);
+        octx.restore();
+        resolve(out);
+      }
+      if (saved){
+        const img = new Image();
+        img.onload = function(){
+          octx.save();
+          roundRectPath(octx, x, y, size, size, radius);
+          octx.clip();
+          octx.drawImage(img, x, y, size, size);
+          octx.restore();
+          finish();
+        };
+        img.onerror = finish;
+        img.src = saved;
+      } else {
+        finish();
+      }
+    });
+  }
+
+  const btnWallpaper = document.getElementById('btnWallpaper');
+  btnWallpaper.addEventListener('click', async function(){
+    if (currentPageId === null) return;
+    const original = btnWallpaper.textContent;
+    btnWallpaper.disabled = true;
+    btnWallpaper.textContent = 'Preparando...';
+    try{
+      const canvas = await composeWallpaper(currentPageId);
+      const filename = 'fondo-mandala-' + (currentPageId + 1) + '.png';
+      let shared = false;
+      if (canNativeShare) shared = await shareCanvasAsPng(canvas, filename);
+      if (!shared) downloadCanvasPng(canvas, filename);
+      showToast('Guardá la imagen y elegí "Usar como fondo de pantalla" desde tu galería');
+    }catch(err){
+      showToast('No se pudo generar el fondo de pantalla');
+    }
+    btnWallpaper.disabled = false;
+    btnWallpaper.textContent = original;
+  });
 
   function buildPdfFromJpegPages(pages){
     const chunks = [];
