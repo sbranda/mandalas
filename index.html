@@ -41,7 +41,7 @@
     display:flex; align-items:center; justify-content:center;
     transition: opacity .4s ease;
   }
-  .app-splash img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .app-splash img{ width:min(88vw,420px); height:auto; max-height:60vh; object-fit:contain; display:block; border-radius:18px; box-shadow:0 10px 40px rgba(0,0,0,.35); }
   .app-splash.hide{ opacity:0; pointer-events:none; }
   .app{
     display:flex; flex-direction:column; min-height:100vh;
